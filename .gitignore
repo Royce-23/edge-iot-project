@@ -1,0 +1,29 @@
+# Python / generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.pio/
+node_modules/
+dist/
+build/
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite-*
+*.log
+# Secrets
+.env
+.env.*
+!.env.example
+firmware/include/secrets.h
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+# Large experimental data stay outside Git; commit only small samples
+data_analysis/datasets/raw/*
+!data_analysis/datasets/raw/.gitkeep
+!data_analysis/datasets/raw/README.md
