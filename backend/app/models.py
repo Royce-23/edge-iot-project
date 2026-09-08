@@ -23,18 +23,21 @@ class FeatureRecord(Base):
     band_energy = Column(Float)
 
 # Bảng 3: Cảnh báo và sự kiện (health_events)
+
 class HealthEvent(Base):
+    """Bảng lưu trữ các cảnh báo khi máy bơm có vấn đề (VD: Độ rung quá cao)"""
     __tablename__ = "health_events"
+    
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(String, ForeignKey("devices.device_id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    
-    event_type = Column(String)  # Ví dụ: NORMAL, WARNING, FAULT
-    description = Column(String) # Mô tả chi tiết
+    event_type = Column(String)       
+    description = Column(String)      
+    timestamp = Column(String)        
 
-# Bảng 4: Trạng thái thiết bị (device_status) - Lần cuối hoạt động
 class DeviceStatus(Base):
+    """Bảng lưu trạng thái Online/Offline của thiết bị"""
     __tablename__ = "device_status"
-    device_id = Column(String, primary_key=True, index=True)
-    last_seen = Column(DateTime, default=datetime.utcnow)
-    is_online = Column(Boolean, default=False)
+    
+    device_id = Column(String, ForeignKey("devices.device_id"), primary_key=True)
+    is_online = Column(Integer, default=1)  
+    last_seen = Column(String)
