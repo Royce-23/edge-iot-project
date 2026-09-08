@@ -1,5 +1,9 @@
 #pragma once
-// Copy to secrets.h locally; never commit real credentials.
-#define WIFI_SSID "CHANGE_LOCALLY"
-#define WIFI_PASSWORD "CHANGE_LOCALLY"
-#define MQTT_HOST "CHANGE_LOCALLY"
+// Copy thanh secrets.h, sau do dien thong tin mang LAN cua ban.
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+// IPv4 cua may chay Mosquitto, KHONG dung localhost/127.0.0.1.
+#define MQTT_HOST "192.168.1.10"
+#define MQTT_USER ""
+#define MQTT_PASSWORD ""
+
