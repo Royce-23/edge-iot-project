@@ -74,8 +74,8 @@ void networkTask(void*) {
                     doc["seq"] = record.seq;
                     doc["uptime_ms"] = record.uptimeMs;
                     doc["timestamp"] = nullptr; // TODO P1: NTP + UTC khi da dong bo.
-                    doc["data_source"] = "mock"; // DOI khi P2/P3 da ghep du lieu that.
-                    doc["method"] = "rms_demo";
+                    doc["data_source"] = "sensor";
+                    doc["method"] = "rms_demo_dc_removed";
                     doc["rms"] = record.features.rms;
                     doc["peak_to_peak"] = record.features.peakToPeak;
                     doc["crest_factor"] = record.features.crestFactor;
@@ -110,4 +110,3 @@ bool startNetworkTask(const AppConfig& cfg, OfflineQueue& queue) {
 }
 bool networkOnline() { return online.load(); }
 const char* sessionId() { return bootId; }
-
