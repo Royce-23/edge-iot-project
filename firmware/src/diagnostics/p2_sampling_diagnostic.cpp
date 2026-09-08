@@ -15,6 +15,9 @@ float gAz[kWindowSize] = {};
 uint64_t gTimestampsUs[kWindowSize] = {};
 uint32_t gWindowId = 0;
 bool gReady = false;
+uint32_t gLastInitializationAttemptMs = 0;
+
+constexpr uint32_t kInitializationRetryMs = 2000;
 
 void printHeader() {
     Serial.println(
@@ -60,9 +63,11 @@ void printRow(std::size_t index, const SamplingMetrics& metrics) {
 void setup() {
     Serial.begin(115200);
     delay(1200);
+    Serial.println("# P2 diagnostic starting");
     gReady = initSensors();
     if (!gReady) {
         Serial.println("# ERROR: ADXL345 initialization failed; check 3.3 V and SPI wiring");
+        gLastInitializationAttemptMs = millis();
         return;
     }
     printHeader();
@@ -70,7 +75,18 @@ void setup() {
 
 void loop() {
     if (!gReady) {
-        delay(1000);
+        if (millis() - gLastInitializationAttemptMs >= kInitializationRetryMs) {
+            gLastInitializationAttemptMs = millis();
+            Serial.println("# Retrying ADXL345 initialization...");
+            gReady = initSensors();
+            if (gReady) {
+                Serial.println("# ADXL345 initialization recovered");
+                printHeader();
+            } else {
+                Serial.println("# ERROR: ADXL345 initialization failed; check 3.3 V and SPI wiring");
+            }
+        }
+        delay(50);
         return;
     }
 

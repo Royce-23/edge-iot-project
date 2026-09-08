@@ -31,6 +31,12 @@ bool gHasLastMetrics = false;
 SamplingMetrics gLastMetrics = {};
 uint64_t gWindowTimestamps[P2_SAMPLING_BUFFER_CAPACITY] = {};
 
+// Integration adapter storage. Keeping these buffers static avoids placing
+// three 512-float arrays on Arduino loopTask's stack.
+float gIntegrationAx[SAMPLE_COUNT] = {};
+float gIntegrationAy[SAMPLE_COUNT] = {};
+float gIntegrationAz[SAMPLE_COUNT] = {};
+
 portMUX_TYPE gCounterLock = portMUX_INITIALIZER_UNLOCKED;
 uint32_t gTimerOverruns = 0;
 uint32_t gBufferOverruns = 0;
@@ -205,6 +211,33 @@ bool collectWindow(float* ax, float* ay, float* az, std::size_t count,
         return false;
     }
     actualSampleRateHz = metrics.actualSampleRateHz;
+    return true;
+}
+
+bool collectWindow(SampleWindow& output, uint64_t uptimeMs) {
+    (void)uptimeMs;
+    static_assert(SAMPLE_COUNT <= P2_SAMPLING_BUFFER_CAPACITY,
+                  "Shared processing window exceeds P2 buffer capacity");
+
+    float actualSampleRateHz = 0.0f;
+    if (!collectWindow(gIntegrationAx, gIntegrationAy, gIntegrationAz,
+                       SAMPLE_COUNT, actualSampleRateHz)) {
+        output.sampleRateHz = 0.0f;
+        return false;
+    }
+
+    // The current shared contract defines a single signal. Use the mounted
+    // sensor's Z axis and remove its window mean so RMS measures vibration, not
+    // gravity/DC bias. Raw XYZ remains available through the P2 diagnostic API.
+    double sumZ = 0.0;
+    for (std::size_t index = 0; index < SAMPLE_COUNT; ++index) {
+        sumZ += gIntegrationAz[index];
+    }
+    const float meanZ = static_cast<float>(sumZ / SAMPLE_COUNT);
+    for (std::size_t index = 0; index < SAMPLE_COUNT; ++index) {
+        output.values[index] = gIntegrationAz[index] - meanZ;
+    }
+    output.sampleRateHz = actualSampleRateHz;
     return true;
 }
 

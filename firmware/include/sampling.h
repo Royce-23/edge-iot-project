@@ -2,6 +2,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "app_types.h"
+
 struct SamplingMetrics {
     float targetSampleRateHz;
     float actualSampleRateHz;
@@ -23,6 +25,11 @@ bool initSensors();
 // in g and the rate measured from the first and last sample timestamps.
 bool collectWindow(float* ax, float* ay, float* az, std::size_t count,
                    float& actualSampleRateHz);
+
+// Integrated P1/P3 adapter. The output is a 512-sample, DC-removed Z-axis
+// window in g. uptimeMs is retained in the shared interface for record identity;
+// P2 timestamps samples independently with esp_timer.
+bool collectWindow(SampleWindow& output, uint64_t uptimeMs);
 
 // Diagnostic API for P2 evidence/CSV capture. timestampsUs may be nullptr when
 // timestamps are not needed. This function has a single-consumer contract.

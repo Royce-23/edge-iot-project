@@ -2,8 +2,10 @@
 
 Project môn IoT • Nhóm 5 người • Kế hoạch 7 tuần.
 
-Đây là bộ khung để bắt đầu làm nhóm, chưa phải hệ thống hoàn chỉnh.
-Firmware hiện chỉ có giao diện và TODO; API/dashboard hiện dùng dữ liệu giả.
+Repo đang ở giai đoạn tích hợp. Firmware đã có luồng P1 + P2 chạy trên
+ESP32-S3: đọc ADXL345 thật, lấy mẫu định thời, trích đặc trưng time-domain,
+phân loại ngưỡng, cảnh báo cục bộ, xếp hàng RAM và gửi MQTT. FFT/anomaly của P3
+và backend/API/dashboard thật vẫn đang được hoàn thiện.
 
 Luồng mục tiêu: ESP32-S3 → MQTT → Python backend → SQLite → dashboard.
 ESP32 phải phát hiện bất thường cục bộ ngay cả khi mất mạng.
@@ -37,9 +39,12 @@ Nếu Windows không nhận `python`, thử `py`.
 ## Trạng thái ban đầu
 - [x] Cấu trúc thư mục và phân công module.
 - [x] Đề xuất contract v1, payload mẫu và mock API/dashboard.
+- [x] Driver ADXL345, sampling 800 Hz, kiểm tra jitter/drop và dataset phần cứng P2.
+- [x] Ghép luồng P1: cấu hình, state machine, queue offline và MQTT.
+- [x] Baseline RMS/peak-to-peak/crest trên cửa sổ Z đã bỏ DC.
 - [ ] Chốt contract với cả nhóm trong tuần 1.
-- [ ] Driver, firmware hoàn chỉnh, MQTT, SQLite và API thật.
-- [ ] Dataset thật, baseline, anomaly score và thực nghiệm.
+- [ ] P3 bổ sung FFT, band energy, anomaly score và hiệu chuẩn ngưỡng.
+- [ ] P4/P5 hoàn thiện MQTT ingestion, SQLite, API và dashboard thật.
 
 Các thư mục có README hoặc `.gitkeep` để Git lưu lại; Git không lưu thư mục rỗng.
 Không đưa mật khẩu Wi-Fi, token, `.env`, database hoặc dataset lớn vào Git.

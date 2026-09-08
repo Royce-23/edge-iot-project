@@ -1,5 +1,8 @@
 #pragma once
-// Copy to secrets.h locally; never commit real credentials.
-#define WIFI_SSID "CHANGE_LOCALLY"
-#define WIFI_PASSWORD "CHANGE_LOCALLY"
-#define MQTT_HOST "CHANGE_LOCALLY"
+// Copy to secrets.h and fill in the LAN credentials. Never commit secrets.h.
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+// Use the IPv4 address of the Mosquitto host, not localhost/127.0.0.1.
+#define MQTT_HOST "192.168.1.10"
+#define MQTT_USER ""
+#define MQTT_PASSWORD ""

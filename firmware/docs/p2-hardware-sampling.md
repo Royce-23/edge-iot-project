@@ -113,6 +113,18 @@ Ví dụ `normal_run01_20260903-090000.csv`. File
 `test-data/p2_sampling_example.synthetic.csv` chỉ minh họa schema, tuyệt đối
 không dùng làm kết quả thực nghiệm.
 
+Có thể dùng công cụ capture để tự lọc dòng Serial, lưu CSV và tính thống kê:
+
+```bash
+python3 firmware/tools/capture_sampling.py \
+    --port /dev/ttyACM0 \
+    --condition stationary \
+    --run-id calibration01 \
+    --samples 1024
+```
+
+Phải đóng `pio device monitor` trước khi chạy để tránh lỗi `port is busy`.
+
 ## Kiểm tra và số liệu phải ghi
 
 1. Để rig đứng yên, kiểm tra tổng gia tốc gần 1 g và ghi offset từng trục.
