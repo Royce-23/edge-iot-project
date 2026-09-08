@@ -4,7 +4,7 @@
 
 // UNKNOWN: chua co phep do hop le; OFFLINE thuoc trang thai mang.
 enum class HealthState : uint8_t { UNKNOWN, NORMAL, WARNING, FAULT };
-constexpr size_t SAMPLE_COUNT = 128;
+constexpr size_t SAMPLE_COUNT = 512;
 
 struct SampleWindow {
     float values[SAMPLE_COUNT];
@@ -26,4 +26,3 @@ struct TelemetryRecord {
     HealthState health;
     uint32_t droppedTotal;
 };
-
