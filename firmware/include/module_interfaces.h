@@ -1,12 +1,14 @@
 #pragma once
+
 #include "app_types.h"
 
-// P2 thay noi dung sampling_stub.cpp bang driver/lap lich lay mau that.
+// P2: real ADXL345/optional temperature sensor implementation.
 bool initSensors();
 bool collectWindow(SampleWindow& output, uint64_t uptimeMs);
+bool readTemperature(float& celsius);
 
-// P3 thay noi dung processing_stub.cpp; giu giao dien da thong nhat.
+// P3: current time-domain baseline. Keep this interface stable when the full
+// FFT/anomaly implementation is integrated.
 VibrationFeatures extractFeatures(const SampleWindow& window);
 HealthState classifyCondition(const VibrationFeatures& features,
                               float warningRms, float faultRms);
-

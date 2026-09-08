@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stdint.h>
 
 struct AppConfig {
@@ -13,9 +14,8 @@ struct AppConfig {
     uint32_t reconnectIntervalMs;
     float warningRms;
     float faultRms;
-    int alarmPin; // -1: chi log Serial, chua dieu khien GPIO.
+    int alarmPin;  // -1: log only; do not drive a GPIO alarm.
 };
 
-// Ban suon: cau hinh compile-time. TODO P1: Preferences/NVS neu can.
+// Compile-time configuration skeleton. P1 may migrate this to Preferences/NVS.
 const AppConfig& loadConfig();
-

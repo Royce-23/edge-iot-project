@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .pytest_cache/
 .pio/
+compile_commands.json
 node_modules/
 dist/
 build/

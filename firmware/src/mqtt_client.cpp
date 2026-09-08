@@ -1,30 +1,34 @@
 #include "mqtt_client.h"
-#include "device_state.h"
+
 #include <Arduino.h>
-#include <WiFi.h>
-#include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <esp_system.h>
+#include <PubSubClient.h>
+#include <WiFi.h>
 #include <atomic>
+#include <esp_system.h>
+
+#include "device_state.h"
 
 namespace {
-const AppConfig* config;
-OfflineQueue* pending;
+
+const AppConfig* config = nullptr;
+OfflineQueue* pending = nullptr;
 std::atomic<bool> online{false};
-char bootId[17];
+char bootId[17] = "not_started";
 
 void networkTask(void*) {
-    // Chi task nay truy cap WiFiClient/PubSubClient.
+    // Only this task accesses WiFiClient/PubSubClient.
     WiFiClient tcp;
     PubSubClient mqtt(tcp);
     mqtt.setServer(config->mqttHost, config->mqttPort);
     mqtt.setSocketTimeout(2);
     mqtt.setKeepAlive(15);
     if (!mqtt.setBufferSize(1024)) {
-        Serial.println("[NET] Khong du RAM cho MQTT");
+        Serial.println("[NET] Not enough RAM for MQTT buffer");
         vTaskDelete(nullptr);
         return;
     }
+
     const String prefix = String("machine/") + config->deviceId;
     const String featuresTopic = prefix + "/features";
     const String statusTopic = prefix + "/status";
@@ -39,19 +43,21 @@ void networkTask(void*) {
         if (WiFi.status() != WL_CONNECTED) {
             online.store(false);
             tcp.stop();
-            if (config->wifiSsid[0] &&
+            if (config->wifiSsid[0] != '\0' &&
                 now - lastWifi >= config->reconnectIntervalMs) {
                 lastWifi = now;
-                Serial.println("[NET] Thu ket noi Wi-Fi");
+                Serial.println("[NET] Connecting to Wi-Fi");
                 WiFi.begin(config->wifiSsid, config->wifiPassword);
             }
         } else {
-            if (!mqtt.connected() && now - lastMqtt >= config->reconnectIntervalMs) {
+            if (!mqtt.connected() &&
+                now - lastMqtt >= config->reconnectIntervalMs) {
                 lastMqtt = now;
-                // LWT retained: broker danh dau OFFLINE neu ket noi bi mat.
-                const char* user = config->mqttUser[0] ? config->mqttUser : nullptr;
-                const char* pass = user ? config->mqttPassword : nullptr;
-                if (mqtt.connect(clientId.c_str(), user, pass,
+                const char* user =
+                    config->mqttUser[0] != '\0' ? config->mqttUser : nullptr;
+                const char* password = user ? config->mqttPassword : nullptr;
+                // Retained last will lets the broker mark a broken connection.
+                if (mqtt.connect(clientId.c_str(), user, password,
                                  statusTopic.c_str(), 1, true, "OFFLINE")) {
                     mqtt.publish(statusTopic.c_str(), "ONLINE", true);
                     Serial.println("[NET] MQTT connected");
@@ -59,34 +65,49 @@ void networkTask(void*) {
                     Serial.printf("[NET] MQTT error=%d\n", mqtt.state());
                 }
             }
+
             if (mqtt.connected()) {
                 mqtt.loop();
-                if (now - lastHeartbeat >= 5000) {
+                if (now - lastHeartbeat >= 5000U) {
                     lastHeartbeat = now;
                     mqtt.publish(statusTopic.c_str(), "ONLINE", true);
                 }
-                TelemetryRecord record;
+
+                TelemetryRecord record{};
                 if (pending->peek(record)) {
-                    StaticJsonDocument<768> doc;
-                    doc["schema_version"] = 1;
-                    doc["device_id"] = config->deviceId;
-                    doc["boot_id"] = bootId;
-                    doc["seq"] = record.seq;
-                    doc["uptime_ms"] = record.uptimeMs;
-                    doc["timestamp"] = nullptr; // TODO P1: NTP + UTC khi da dong bo.
-                    doc["data_source"] = "mock"; // DOI khi P2/P3 da ghep du lieu that.
-                    doc["method"] = "rms_demo";
-                    doc["rms"] = record.features.rms;
-                    doc["peak_to_peak"] = record.features.peakToPeak;
-                    doc["crest_factor"] = record.features.crestFactor;
-                    doc["health_state"] = healthName(record.health);
-                    doc["dropped_total"] = record.droppedTotal;
+                    StaticJsonDocument<768> document;
+                    document["schema_version"] = 1;
+                    document["device_id"] = config->deviceId;
+                    document["boot_id"] = bootId;
+                    document["sequence"] = record.sequence;
+                    document["uptime_ms"] = record.uptimeMs;
+                    document["timestamp"] = nullptr;
+                    document["data_source"] = "real_adxl345";
+                    document["method"] = "z_axis_dc_removed_time_domain";
+                    document["sample_rate_hz"] = record.sampleRateHz;
+                    document["sample_count"] = record.sampleCount;
+                    document["rms"] = record.features.rms;
+                    document["peak_to_peak"] = record.features.peakToPeak;
+                    document["crest_factor"] = record.features.crestFactor;
+                    document["health_state"] = healthName(record.health);
+                    document["dropped_total"] = record.droppedTotal;
+                    if (record.hasTemperature) {
+                        document["temperature_c"] = record.temperatureC;
+                    } else {
+                        document["temperature_c"] = nullptr;
+                    }
+
                     char payload[768];
-                    if (!doc.overflowed() && measureJson(doc) < sizeof(payload)) {
-                        const size_t length = serializeJson(doc, payload, sizeof(payload));
-                        // QoS 0: true chi la chap nhan gui, KHONG phai ACK backend.
-                        if (mqtt.publish(featuresTopic.c_str(),
-                            reinterpret_cast<const uint8_t*>(payload), length, false)) {
+                    if (!document.overflowed() &&
+                        measureJson(document) < sizeof(payload)) {
+                        const size_t length =
+                            serializeJson(document, payload, sizeof(payload));
+                        // PubSubClient uses QoS 0 here: true only means accepted
+                        // for sending, not acknowledged by the backend.
+                        if (mqtt.publish(
+                                featuresTopic.c_str(),
+                                reinterpret_cast<const uint8_t*>(payload),
+                                length, false)) {
                             pending->pop();
                         }
                     }
@@ -94,20 +115,22 @@ void networkTask(void*) {
             }
             online.store(mqtt.connected());
         }
-        vTaskDelay(pdMS_TO_TICKS(100)); // Toi da khoang 10 ban ghi/giay.
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
-}
 
-bool startNetworkTask(const AppConfig& cfg, OfflineQueue& queue) {
-    config = &cfg;
+}  // namespace
+
+bool startNetworkTask(const AppConfig& appConfig, OfflineQueue& queue) {
+    config = &appConfig;
     pending = &queue;
     snprintf(bootId, sizeof(bootId), "%08lx%08lx",
              static_cast<unsigned long>(esp_random()),
              static_cast<unsigned long>(esp_random()));
-    // MQTT connect co the cho timeout; task rieng giu loop phat hien tiep tuc.
-    return xTaskCreate(networkTask, "network", 8192, nullptr, 1, nullptr) == pdPASS;
+    return xTaskCreate(networkTask, "network", 8192, nullptr, 1, nullptr) ==
+           pdPASS;
 }
-bool networkOnline() { return online.load(); }
-const char* sessionId() { return bootId; }
 
+bool networkOnline() { return online.load(); }
+
+const char* sessionId() { return bootId; }

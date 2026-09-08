@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <esp_timer.h>
+#include <math.h>
+
 #include "config_manager.h"
 #include "device_state.h"
 #include "module_interfaces.h"
@@ -7,16 +9,18 @@
 #include "offline_queue.h"
 
 namespace {
-const AppConfig* config;
+
+const AppConfig* config = nullptr;
 OfflineQueue pending;
 DeviceState device;
-SampleWindow window;
+SampleWindow window{};
 uint32_t sequence = 0;
 uint32_t dropped = 0;
 uint32_t lastRecord = 0;
 bool sensorsReady = false;
 bool queueReady = false;
-}
+
+}  // namespace
 
 void setup() {
     Serial.begin(115200);
@@ -25,56 +29,77 @@ void setup() {
         pinMode(config->alarmPin, OUTPUT);
         digitalWrite(config->alarmPin, LOW);
     }
-    sensorsReady = initSensors();          // Module nguoi 2.
-    queueReady = pending.begin();          // Bo dem RAM.
+
+    sensorsReady = initSensors();
+    queueReady = pending.begin();
     if (queueReady) {
-        if (!startNetworkTask(*config, pending))
-            Serial.println("[ERROR] Khong tao duoc network task; van phat hien cuc bo");
+        if (!startNetworkTask(*config, pending)) {
+            Serial.println(
+                "[ERROR] Cannot create network task; local detection continues");
+        }
     } else {
-        Serial.println("[ERROR] Khong tao duoc queue; van phat hien cuc bo");
+        Serial.println(
+            "[ERROR] Cannot create offline queue; local detection continues");
     }
-    Serial.println("[BOOT] P1 skeleton - DU LIEU GIA, khong phai phep do that");
-    Serial.printf("[BOOT] device=%s session=%s\n", config->deviceId, sessionId());
+    Serial.println("[BOOT] Integrated firmware: real ADXL345 sampling");
+    Serial.printf("[BOOT] device=%s session=%s\n", config->deviceId,
+                  sessionId());
 }
 
 void loop() {
     const uint32_t now = millis();
     if (now - lastRecord < config->recordIntervalMs) {
-        delay(1); // Nhuong CPU; khong cho ket noi mang trong loop.
+        delay(1);
         return;
     }
     lastRecord = now;
-    const uint64_t sampledAt = static_cast<uint64_t>(esp_timer_get_time()) / 1000;
-    if (!sensorsReady) sensorsReady = initSensors();
+
+    const uint64_t sampledAt =
+        static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL;
+    if (!sensorsReady) {
+        sensorsReady = initSensors();
+    }
     if (!sensorsReady || !collectWindow(window, sampledAt)) {
         device.update(HealthState::UNKNOWN);
-        if (config->alarmPin >= 0) digitalWrite(config->alarmPin, LOW);
-        Serial.println("[SENSOR] Khong co du lieu hop le; health=UNKNOWN");
-        // TODO P1/P4: gui su kien loi cam bien rieng; dashboard can stale timeout.
+        if (config->alarmPin >= 0) {
+            digitalWrite(config->alarmPin, LOW);
+        }
+        Serial.println("[SENSOR] No valid window; health=UNKNOWN");
         return;
     }
 
-    const VibrationFeatures features = extractFeatures(window); // Module nguoi 3.
-    const HealthState result = classifyCondition(features,
-        config->warningRms, config->faultRms);
+    const VibrationFeatures features = extractFeatures(window);
+    const HealthState result = classifyCondition(
+        features, config->warningRms, config->faultRms);
     if (device.update(result)) {
         Serial.printf("[STATE] %s\n", healthName(device.health()));
-        // TODO P1: tach health_events/gui topic events khi thay doi trang thai.
     }
-    if (config->alarmPin >= 0)
-        digitalWrite(config->alarmPin, device.alarmActive() ? HIGH : LOW);
+    if (config->alarmPin >= 0) {
+        digitalWrite(config->alarmPin,
+                     device.alarmActive() ? HIGH : LOW);
+    }
 
-    const TelemetryRecord record {
-        ++sequence, sampledAt, features, device.health(), dropped
+    float temperatureC = NAN;
+    const bool hasTemperature = readTemperature(temperatureC);
+    const TelemetryRecord record{
+        ++sequence,
+        sampledAt,
+        window.sampleRateHz,
+        static_cast<uint16_t>(SAMPLE_COUNT),
+        features,
+        device.health(),
+        temperatureC,
+        hasTemperature,
+        dropped,
     };
     if (!queueReady || !pending.push(record)) {
         ++dropped;
-        Serial.printf("[QUEUE] Bo ban ghi moi, dropped_total=%lu\n",
+        Serial.printf("[QUEUE] Dropped newest record, dropped_total=%lu\n",
                       static_cast<unsigned long>(dropped));
     }
-    Serial.printf("[DATA] seq=%lu rms=%.3f health=%s network=%s queued=%u\n",
+    Serial.printf(
+        "[DATA] seq=%lu rms=%.5f g health=%s network=%s queued=%u\n",
         static_cast<unsigned long>(sequence), features.rms,
         healthName(device.health()), networkOnline() ? "ONLINE" : "OFFLINE",
         static_cast<unsigned>(queueReady ? pending.size() : 0));
 }
-
