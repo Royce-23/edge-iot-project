@@ -1,0 +1,48 @@
+{
+  "rms_baseline": {
+    "positive_label": 1,
+    "window_count": 40,
+    "confusion_matrix": [
+      [
+        16,
+        0
+      ],
+      [
+        8,
+        16
+      ]
+    ],
+    "tn": 16,
+    "fp": 0,
+    "fn": 8,
+    "tp": 16,
+    "accuracy": 0.8,
+    "precision": 1.0,
+    "recall": 0.6666666666666666,
+    "false_alarm_rate": 0.0,
+    "missed_detection_rate": 0.3333333333333333
+  },
+  "multi_feature": {
+    "positive_label": 1,
+    "window_count": 40,
+    "confusion_matrix": [
+      [
+        14,
+        2
+      ],
+      [
+        0,
+        24
+      ]
+    ],
+    "tn": 14,
+    "fp": 2,
+    "fn": 0,
+    "tp": 24,
+    "accuracy": 0.95,
+    "precision": 0.9230769230769231,
+    "recall": 1.0,
+    "false_alarm_rate": 0.125,
+    "missed_detection_rate": 0.0
+  }
+}

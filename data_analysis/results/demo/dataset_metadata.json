@@ -1,0 +1,16 @@
+{
+  "context": {
+    "axis": "z",
+    "unit": "g",
+    "source": "simulated",
+    "speed_configuration": "demo_fixed_speed"
+  },
+  "feature_config": {
+    "sample_rate_hz": 800.0,
+    "window_size": 512,
+    "band_low_hz": 10.0,
+    "band_high_hz": 200.0,
+    "remove_mean": true
+  },
+  "rejected_windows": []
+}

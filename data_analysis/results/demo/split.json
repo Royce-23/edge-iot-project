@@ -1,0 +1,24 @@
+{
+  "seed": 42,
+  "test_fraction": 0.33,
+  "stratified_by": [
+    "label",
+    "condition"
+  ],
+  "train_run_ids": [
+    "fan_abnormal_00",
+    "fan_abnormal_01",
+    "fan_abnormal_02",
+    "fan_normal_00",
+    "fan_normal_02",
+    "fan_normal_04",
+    "fan_normal_05"
+  ],
+  "test_run_ids": [
+    "fan_abnormal_03",
+    "fan_abnormal_04",
+    "fan_abnormal_05",
+    "fan_normal_01",
+    "fan_normal_03"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "purpose": "abnormal_fan_vibration",
+  "source": "simulated",
+  "feature_config": {
+    "sample_rate_hz": 800.0,
+    "window_size": 512,
+    "band_low_hz": 10.0,
+    "band_high_hz": 200.0,
+    "remove_mean": true
+  },
+  "context": {
+    "axis": "z",
+    "unit": "g",
+    "source": "simulated",
+    "speed_configuration": "demo_fixed_speed"
+  },
+  "score_features": [
+    "rms",
+    "crest_factor",
+    "band_energy",
+    "dominant_frequency"
+  ],
+  "normal_training_run_ids": [
+    "fan_normal_00",
+    "fan_normal_02",
+    "fan_normal_04",
+    "fan_normal_05"
+  ],
+  "normal_training_window_count": 32,
+  "quantile": 0.99,
+  "rms_threshold": 0.03480915526399368,
+  "means": [
+    0.03205343978303462,
+    1.6830726603364612,
+    0.001021273349678792,
+    50.0
+  ],
+  "scales": [
+    0.0015548671077705522,
+    0.04840581401518668,
+    0.00010092330268088915,
+    1.5625
+  ],
+  "weights": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "score_threshold": 1.1502027325384563
+}
