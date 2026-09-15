@@ -1,131 +1,169 @@
 import json
+import time
+import os
 import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from .database import SessionLocal, engine
 from . import models
-from datetime import datetime
 
-# 1. Lệnh này sẽ nhìn vào file models.py và TỰ ĐỘNG tạo file iot_data.db trên ổ cứng
+# 1. BẢO MẬT: Tải cấu hình mạng từ file ẩn .env
+load_dotenv()
+MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+MQTT_TOPIC = "machine/#"
+
+# Tự động tạo bảng database nếu chưa có
 models.Base.metadata.create_all(bind=engine)
 
-# 2. Cấu hình MQTT Broker 
-MQTT_BROKER = "test.mosquitto.org" 
-MQTT_PORT = 1883
-MQTT_TOPIC = "machine/#" 
+# =======================================================
+# HÀM XỬ LÝ DỮ LIỆU ĐO ĐẠC (Topic: machine/+/features)
+# =======================================================
+def handle_features_message(db: Session, device_id: str, payload: dict):
+    boot_id = payload.get("boot_id")
+    sequence = payload.get("sequence")
+    timestamp = payload.get("timestamp")
+    
+    # THUẬT TOÁN MỚI: Deduplication bằng (device_id, boot_id, sequence)
+    existing_record = db.query(models.FeatureRecord).filter(
+        models.FeatureRecord.device_id == device_id,
+        models.FeatureRecord.boot_id == boot_id,
+        models.FeatureRecord.sequence == sequence
+    ).first()
+    
+    if existing_record:
+        print(f"⚠️ Đã chặn lưu trùng gói tin seq={sequence} (boot: {boot_id}) của máy {device_id}")
+        return
 
-# 3. Hàm xử lý lưu dữ liệu vào Ổ cứng (SQLite) - ĐÃ FIX LỖI THỜI GIAN
-def save_feature_data(device_id: str, payload: dict):
-    db = SessionLocal()
-    try:
-        rms_value = payload.get("rms", 0.0)
-        raw_ts = payload.get("timestamp", 0)
-
-        # Chuyển đổi mã thời gian Unix (số nguyên) sang chuẩn DateTime (Ngày-Giờ)
-        try:
-            dt_timestamp = datetime.fromtimestamp(int(raw_ts))
-        except:
-            dt_timestamp = datetime.now() # Đề phòng lỗi thì lấy giờ hiện tại
-            
-        str_timestamp = str(dt_timestamp) # Dành cho bảng cảnh báo
-
-        # ==========================================
-        # 1. BỘ LỌC CHỐNG LƯU TRÙNG (Deduplication)
-        # ==========================================
-        existing_record = db.query(models.FeatureRecord).filter(
-            models.FeatureRecord.device_id == device_id,
-            models.FeatureRecord.timestamp == dt_timestamp
-        ).first()
-        
-        if existing_record:
-            print(f"⚠️ Đã chặn 1 gói tin trùng từ {device_id} (thời điểm {str_timestamp})")
-            return
-
-        # ==========================================
-        # Kiểm tra và thêm thiết bị mới
-        # ==========================================
-        device = db.query(models.Device).filter(models.Device.device_id == device_id).first()
-        if not device:
-            new_device = models.Device(device_id=device_id)
-            db.add(new_device)
-            db.commit()
-
-        # ==========================================
-        # 2. LƯU DỮ LIỆU ĐẶC TRƯNG BÌNH THƯỜNG
-        # ==========================================
-        new_record = models.FeatureRecord(
-            device_id=device_id,
-            rms=rms_value,
-            peak_to_peak=payload.get("peak_to_peak", 0.0),
-            crest_factor=payload.get("crest_factor", 0.0),
-            timestamp=dt_timestamp
-        )
-        db.add(new_record)
-
-        # ==========================================
-        # 3. KÍCH HOẠT CỜ BÁO LỖI (Health Events)
-        # ==========================================
-        if rms_value > 5.0:
-            event_level = "CRITICAL" if rms_value > 7.0 else "WARNING"
-            new_event = models.HealthEvent(
-                device_id=device_id,
-                event_type=event_level,
-                description=f"Độ rung bất thường! RMS = {rms_value}",
-                timestamp=str_timestamp
-            )
-            db.add(new_event)
-            print(f"🚨 BÁO ĐỘNG {event_level}: Máy {device_id} đang rung quá mạnh!")
-
-        # ==========================================
-        # 4. CẬP NHẬT TRẠNG THÁI (Device Status)
-        # ==========================================
-        status = db.query(models.DeviceStatus).filter(models.DeviceStatus.device_id == device_id).first()
-        if not status:
-            status = models.DeviceStatus(device_id=device_id, is_online=1, last_seen=str_timestamp)
-            db.add(status)
-        else:
-            status.is_online = 1
-            status.last_seen = str_timestamp
-
+    # Khai báo máy mới nếu chưa tồn tại
+    device = db.query(models.Device).filter(models.Device.device_id == device_id).first()
+    if not device:
+        db.add(models.Device(device_id=device_id))
         db.commit()
-        print(f"✅ Đã lưu RMS: {rms_value} của {device_id} vào Database!")
 
-    except Exception as e:
-        print(f"❌ Lỗi ghi ổ cứng: {e}")
-        db.rollback()
-    finally:
-        db.close() 
+    # Dấu thời gian Server nhận được tin (luôn có)
+    received_at_str = str(time.time())
 
-# 4. Hàm chạy tự động khi kết nối thành công với Broker
-def on_connect(client, userdata, flags, reason_code, properties):
-    print(f"🔌 Đã kết nối MQTT Broker (Mã trạng thái: {reason_code})")
+    # Lưu toàn bộ 16 trường dữ liệu vào database
+    new_record = models.FeatureRecord(
+        device_id=device_id,
+        boot_id=boot_id,
+        sequence=sequence,
+        timestamp=timestamp,
+        received_at=received_at_str,
+        uptime_ms=payload.get("uptime_ms", 0),
+        sample_rate_hz=payload.get("sample_rate_hz", 800.0),
+        sample_count=payload.get("sample_count", 512),
+        rms=payload.get("rms", 0.0),
+        peak_to_peak=payload.get("peak_to_peak", 0.0),
+        crest_factor=payload.get("crest_factor", 0.0),
+        dominant_frequency=payload.get("dominant_frequency", 0.0),
+        band_energy=payload.get("band_energy", 0.0),
+        anomaly_score=payload.get("anomaly_score"),
+        health_state=payload.get("health_state", "NORMAL"),
+        temperature_c=payload.get("temperature_c")
+    )
+    db.add(new_record)
+
+    # NẾU MÁY BỊ LỖI -> TỰ ĐỘNG SINH CẢNH BÁO HEALTH EVENT
+    health_state = payload.get("health_state", "NORMAL")
+    if health_state in ["WARNING", "FAULT"]:
+        event_id = f"{device_id}_{boot_id}_{sequence}" # Cấp ID duy nhất cho sự kiện
+        new_event = models.HealthEvent(
+            event_id=event_id,
+            device_id=device_id,
+            timestamp=timestamp,
+            received_at=received_at_str,
+            type=health_state,
+            message=f"Phát hiện trạng thái {health_state}. Điểm bất thường (AI): {payload.get('anomaly_score')}"
+        )
+        db.add(new_event)
+        print(f"🚨 BÁO ĐỘNG {health_state}: Đã lưu sự kiện lỗi cho {device_id}!")
+
+    db.commit()
+    print(f"✅ Đã lưu Features (RMS: {new_record.rms}) từ {device_id}")
+
+# =======================================================
+# HÀM XỬ LÝ TRẠNG THÁI MẠNG (Topic: machine/+/status)
+# =======================================================
+def handle_status_message(db: Session, device_id: str, payload: dict):
+    is_online = payload.get("online", False)
+    # Hợp đồng: mạch gửi timestamp=null khi chưa có mạng, ta lấy giờ hệ thống chữa cháy
+    last_seen_val = payload.get("timestamp")
+    if last_seen_val is None:
+        last_seen_val = int(time.time())
+
+    status = db.query(models.DeviceStatus).filter(models.DeviceStatus.device_id == device_id).first()
+    if not status:
+        status = models.DeviceStatus(device_id=device_id, online=is_online, last_seen=last_seen_val)
+        db.add(status)
+    else:
+        status.online = is_online
+        status.last_seen = last_seen_val
+    
+    db.commit()
+    state_str = "ONLINE 🟢" if is_online else "OFFLINE 🔴"
+    print(f"🌐 Cập nhật {device_id} -> {state_str}")
+
+
+# =======================================================
+# LÕI QUẢN LÝ GIAO TIẾP MQTT
+# =======================================================
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    print(f"🔌 Đã kết nối Mosquitto Broker (Mã: {reason_code})")
     client.subscribe(MQTT_TOPIC)
-    print(f"📡 Đang lắng nghe ESP32 qua Topic: {MQTT_TOPIC}")
+    print(f"📡 Đang lắng nghe kênh: {MQTT_TOPIC}")
 
-# 5. Hàm chạy tự động mỗi khi ESP32 bắn tin nhắn lên
 def on_message(client, userdata, msg):
+    receive_time = time.time()
     topic = msg.topic
-    payload_str = msg.payload.decode('utf-8')
-    print(f"📩 Nhận tin nhắn từ '{topic}': {payload_str}")
     
     try:
+        payload_str = msg.payload.decode('utf-8')
         data = json.loads(payload_str)
         parts = topic.split('/')
+        
         if len(parts) >= 3:
             device_id = parts[1]
             msg_type = parts[2]
             
-            if msg_type == "features":
-                save_feature_data(device_id, data)
+            db = SessionLocal()
+            try:
+                # ĐO ĐỘ TRỄ MẠNG (Chỉ đo nếu mạch có gửi timestamp thực)
+                send_time = data.get("timestamp")
+                if send_time:
+                    latency_ms = (receive_time - send_time) * 1000
+                    print(f"⏱️ Độ trễ ({msg_type}): {latency_ms:.2f} ms")
+
+                # CHIA LUỒNG XỬ LÝ THEO ĐÚNG HỢP ĐỒNG
+                if msg_type == "features":
+                    handle_features_message(db, device_id, data)
+                elif msg_type == "status":
+                    handle_status_message(db, device_id, data)
                 
+            except Exception as e:
+                print(f"❌ Lỗi ghi Database: {e}")
+                db.rollback()
+            finally:
+                db.close()
+                
+    except json.JSONDecodeError:
+        print(f"❌ Lỗi: Gói tin không phải JSON chuẩn từ kênh {topic}")
     except Exception as e:
         print(f"❌ Lỗi xử lý tin nhắn: {e}")
 
-# 6. Hàm kích hoạt toàn bộ hệ thống MQTT
 def start_mqtt():
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except AttributeError:
+        client = mqtt.Client() # Dự phòng cho thư viện paho-mqtt bản cũ
+        
     client.on_connect = on_connect
     client.on_message = on_message
     
-    print("⏳ Đang khởi động trạm thu sóng MQTT...")
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_start()
+    print(f"⏳ Đang khởi động trạm thu tại {MQTT_HOST}:{MQTT_PORT}...")
+    try:
+        client.connect(MQTT_HOST, MQTT_PORT, 60)
+        client.loop_start()
+    except Exception as e:
+        print(f"❌ KHÔNG THỂ BẬT MQTT: {e}. Nhớ kiểm tra file .env hoặc bật Mosquitto lên nhé!")

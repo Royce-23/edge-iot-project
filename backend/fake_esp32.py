@@ -1,51 +1,57 @@
-import time
 import json
-import random
+import time
 import paho.mqtt.client as mqtt
+from pathlib import Path
 
-# 1. Cấu hình trạm phát (Phải khớp 100% với mqtt_service.py)
+# Cấu hình phải khớp 100% với file .env của Backend
 BROKER = "test.mosquitto.org"
 PORT = 1883
-DEVICE_ID = "MAY_BOM_01"
-# Đổi kênh phát thành features để chuẩn bị cho việc phân loại dữ liệu sau này
-TOPIC = f"machine/{DEVICE_ID}/features" 
+DEVICE_ID = "motor_01"
 
-def main():
-    # Khởi tạo mạch phát (Mỗi mạch cần một ID ngẫu nhiên để không đụng độ nhau)
-    client = mqtt.Client(client_id=f"Fake_ESP32_{random.randint(100,999)}")
-    
-    print(f"📡 Đang kết nối tới trạm MQTT {BROKER}...")
+def send_fake_data():
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    print(f"🔌 Đang kết nối tới trạm {BROKER}...")
     client.connect(BROKER, PORT, 60)
     
-    print("✅ Kết nối thành công! Bắt đầu phát sóng (nhấn Ctrl+C để tắt nguồn)")
+    # ----------------------------------------------------
+    # 1. Bắn tin nhắn: CẬP NHẬT TRẠNG THÁI (Online)
+    # ----------------------------------------------------
+    status_topic = f"machine/{DEVICE_ID}/status"
+    status_payload = {
+        "device_id": DEVICE_ID, 
+        "online": True, 
+        "timestamp": int(time.time())
+    }
+    # Hợp đồng yêu cầu topic status phải có Retain=True
+    client.publish(status_topic, json.dumps(status_payload), qos=1, retain=True)
+    print(f"🟢 Đã bắn trạng thái ONLINE -> {status_topic}")
     
+    time.sleep(1) # Nghỉ 1 giây cho chân thực
+    
+    # ----------------------------------------------------
+    # 2. Bắn tin nhắn: DỮ LIỆU ĐO ĐẠC (Features)
+    # ----------------------------------------------------
+    # Lấy dữ liệu mẫu từ file features.sample.json của nhóm
     try:
-        while True:
-            # Bước 1: Mô phỏng dữ liệu nhiễu (Giống như đọc ADC và tính toán)
-            rms = round(random.uniform(1.0, 5.5), 2)
-            peak_to_peak = round(rms * random.uniform(1.4, 2.0), 2)
-            crest_factor = round(peak_to_peak / rms, 2)
-            
-            # Bước 2: Đóng gói Payload thành JSON chuẩn
-            payload = {
-                "rms": rms,
-                "peak_to_peak": peak_to_peak,
-                "crest_factor": crest_factor,
-                "timestamp": int(time.time()) # Lấy giờ hệ thống nhét vào để sau này đo độ trễ
-            }
-            
-            payload_str = json.dumps(payload)
-            
-            # Bước 3: Bắn tín hiệu vô tuyến lên MQTT
-            client.publish(TOPIC, payload_str)
-            print(f"📤 Đã gửi: {payload_str} -> tới kênh: {TOPIC}")
-            
-            # Bước 4: Đứng chờ 3 giây rồi lặp lại (Y hệt hàm delay(3000) trong C/C++)
-            time.sleep(3)
-            
-    except KeyboardInterrupt:
-        print("\n🛑 Đã ngắt điện mạch giả lập ESP32.")
-        client.disconnect()
+        ROOT = Path(__file__).resolve().parents[1] 
+        json_path = ROOT / "test-data" / "features.sample.json"
+        with open(json_path, "r", encoding="utf-8") as f:
+            feature_payload = json.load(f)
+            # Cập nhật thời gian thực để test
+            feature_payload["timestamp"] = int(time.time())
+            # Cố tình chỉnh RMS > 5.0 để test tính năng "Còi báo động" của Backend
+            feature_payload["rms"] = 6.5 
+            feature_payload["health_state"] = "WARNING"
+    except Exception as e:
+        print(f"❌ Không tìm thấy file JSON mẫu, kiểm tra lại đường dẫn: {e}")
+        return
+
+    feature_topic = f"machine/{DEVICE_ID}/features"
+    client.publish(feature_topic, json.dumps(feature_payload), qos=1)
+    print(f"📦 Đã bắn gói đo đạc (seq={feature_payload.get('sequence')}, RMS={feature_payload.get('rms')}) -> {feature_topic}")
+
+    client.disconnect()
+    print("✅ Hoàn tất giả lập!")
 
 if __name__ == "__main__":
-    main()
+    send_fake_data()

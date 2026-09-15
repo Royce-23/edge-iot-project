@@ -1,90 +1,110 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from . import models
-from .database import get_db
-from .mqtt_service import start_mqtt
+from .database import engine, get_db
+from . import models, mqtt_service
+import time
 
-# Khởi tạo ứng dụng FastAPI
-app = FastAPI(
-    title="Edge-IoT Predictive Maintenance API",
-    description="REST API cho hệ thống giám sát tình trạng máy quay",
-    version="1.0.0"
+# Tự động tạo bảng nếu chưa có
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Edge IoT API - Nhóm 5")
+
+# BẬT CORS: Cho phép Dashboard của P5 gọi API mà không bị chặn lỗi Origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Trong thực tế có thể giới hạn URL web của P5
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Sự kiện này báo cho server biết: Khi nào Server bật lên, hãy bật luôn trạm MQTT
+# Khởi động MQTT chạy ngầm khi API bật lên
 @app.on_event("startup")
 def startup_event():
-    start_mqtt()
+    mqtt_service.start_mqtt()
 
-@app.get("/")
-def read_root():
-    return {"message": "Server Backend đang hoạt động tốt!"}
-
+# ---------------------------------------------------------
+# 1. API Lấy danh sách toàn bộ thiết bị
+# ---------------------------------------------------------
 @app.get("/api/devices")
 def get_devices(db: Session = Depends(get_db)):
-    """Lấy danh sách tất cả thiết bị và trạng thái online/offline"""
-    devices = db.query(models.Device).all()
-    return {"status": "success", "data": devices}
+    statuses = db.query(models.DeviceStatus).all()
+    # Chỉ bốc đúng 3 biến theo hợp đồng yêu cầu
+    return [{"device_id": s.device_id, "online": s.online, "last_seen": s.last_seen} for s in statuses]
 
+# ---------------------------------------------------------
+# 2. API Lấy dữ liệu ĐO ĐẠC MỚI NHẤT của 1 máy
+# ---------------------------------------------------------
 @app.get("/api/devices/{device_id}/latest")
-def get_latest_data(device_id: str, db: Session = Depends(get_db)):
-    """Lấy đặc trưng (features) và trạng thái sức khỏe mới nhất của thiết bị"""
-    latest_record = db.query(models.FeatureRecord)\
-                      .filter(models.FeatureRecord.device_id == device_id)\
-                      .order_by(models.FeatureRecord.timestamp.desc())\
-                      .first()
-                      
-    if not latest_record:
-        return {"device_id": device_id, "message": "Chưa có dữ liệu"}
-        
-    return {
-        "device_id": device_id,
-        "timestamp": latest_record.timestamp, 
-        "features": {
-            "rms": latest_record.rms,
-            "peak_to_peak": latest_record.peak_to_peak,
-            "crest_factor": latest_record.crest_factor
-        }
-    }
+def get_latest(device_id: str, db: Session = Depends(get_db)):
+    record = db.query(models.FeatureRecord)\
+               .filter(models.FeatureRecord.device_id == device_id)\
+               .order_by(models.FeatureRecord.id.desc())\
+               .first()
+               
+    if not record:
+        raise HTTPException(status_code=404, detail="Chưa có dữ liệu đo đạc cho máy này")
+    return record
 
+# ---------------------------------------------------------
+# 3. API Lấy LỊCH SỬ ĐO ĐẠC (Để vẽ biểu đồ)
+# ---------------------------------------------------------
 @app.get("/api/devices/{device_id}/history")
-def get_device_history(device_id: str, limit: int = 50, db: Session = Depends(get_db)):
-    """API 1: Lấy lịch sử đo đạc gần nhất của thiết bị"""
-    all_records_count = db.query(models.FeatureRecord).count()
-    print(f"🔍 [DEBUG] Tổng số bản ghi đang có trong bảng feature_records là: {all_records_count}")
-
+def get_history(device_id: str, limit: int = 100, db: Session = Depends(get_db)):
+    # Hợp đồng: limit giới hạn từ 1 đến 1000
+    if limit < 1 or limit > 1000:
+        limit = 100
+        
+    # Bước A: Bốc N bản ghi mới nhất từ database
     records = db.query(models.FeatureRecord)\
                 .filter(models.FeatureRecord.device_id == device_id)\
                 .order_by(models.FeatureRecord.id.desc())\
                 .limit(limit)\
                 .all()
                 
-    print(f"🔍 [DEBUG] Số bản khớp với device_id '{device_id}' là: {len(records)}")
-    
-    return {"device_id": device_id, "history": records}
+    # Bước B: Đảo ngược mảng ( [::-1] ) để dữ liệu trả ra xếp TĂNG DẦN thời gian
+    # Hợp đồng yêu cầu biểu đồ phải vẽ từ cũ tới mới
+    return records[::-1]
 
+# ---------------------------------------------------------
+# 4. API Lấy LỊCH SỬ CẢNH BÁO (Lỗi, Cảnh báo AI)
+# ---------------------------------------------------------
 @app.get("/api/devices/{device_id}/events")
-def get_health_events(device_id: str, limit: int = 20, db: Session = Depends(get_db)):
-    """API 2: Lấy danh sách cảnh báo (alerts) của thiết bị"""
+def get_events(device_id: str, limit: int = 100, db: Session = Depends(get_db)):
     events = db.query(models.HealthEvent)\
                .filter(models.HealthEvent.device_id == device_id)\
                .order_by(models.HealthEvent.id.desc())\
                .limit(limit)\
                .all()
-    return {"device_id": device_id, "events": events}
+    return events
 
+# ---------------------------------------------------------
+# 5. API Lấy TRẠNG THÁI MẠNG chi tiết
+# ---------------------------------------------------------
 @app.get("/api/devices/{device_id}/status")
-def get_device_status(device_id: str, db: Session = Depends(get_db)):
-    """API 3: Kiểm tra xem máy bơm đang online hay offline"""
-    status = db.query(models.DeviceStatus)\
-               .filter(models.DeviceStatus.device_id == device_id)\
-               .first()
-               
+def get_status(device_id: str, db: Session = Depends(get_db)):
+    status = db.query(models.DeviceStatus).filter(models.DeviceStatus.device_id == device_id).first()
     if not status:
-        return {"device_id": device_id, "message": "Chưa có dữ liệu trạng thái"}
-        
+        raise HTTPException(status_code=404, detail="Không tìm thấy trạng thái thiết bị")
+    
+    # Tính toán biến "stale" (Dữ liệu cũ): 
+    # Mạch có thể có mạng (online), nhưng nếu 5 phút (300s) rồi không đo được thông số nào -> stale = True
+    is_stale = False
+    latest_record = db.query(models.FeatureRecord).filter(models.FeatureRecord.device_id == device_id).order_by(models.FeatureRecord.id.desc()).first()
+    
+    if latest_record:
+        try:
+            time_since_last_record = time.time() - float(latest_record.received_at)
+            if time_since_last_record > 300: 
+                is_stale = True
+        except:
+            is_stale = True
+    else:
+        is_stale = True
+
     return {
-        "device_id": device_id, 
-        "is_online": status.is_online,
-        "last_seen": status.last_seen
+        "device_id": status.device_id,
+        "online": status.online,
+        "last_seen": status.last_seen,
+        "stale": is_stale
     }
