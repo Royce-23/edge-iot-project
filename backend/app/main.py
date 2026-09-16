@@ -39,7 +39,7 @@ def get_devices(db: Session = Depends(get_db)):
 def get_latest(device_id: str, db: Session = Depends(get_db)):
     record = db.query(models.FeatureRecord)\
                .filter(models.FeatureRecord.device_id == device_id)\
-               .order_by(models.FeatureRecord.id.desc())\
+               .order_by(models.FeatureRecord.timestamp.desc())\
                .first()
                
     if not record:

@@ -1,0 +1,28 @@
+{
+	"folders": [
+		{
+			"path": "../../.github"
+		},
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../contracts"
+		},
+		{
+			"path": "../../dashboard"
+		},
+		{
+			"path": "../../data_analysis"
+		},
+		{
+			"path": "../../docs"
+		},
+		{
+			"path": "../../firmware"
+		},
+		{
+			"path": "../../test-data"
+		}
+	]
+}

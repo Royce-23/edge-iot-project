@@ -98,8 +98,12 @@ def handle_status_message(db: Session, device_id: str, payload: dict):
         status = models.DeviceStatus(device_id=device_id, online=is_online, last_seen=last_seen_val)
         db.add(status)
     else:
-        status.online = is_online
-        status.last_seen = last_seen_val
+        # [ĐÃ SỬA LỖI REPLAY]: Chỉ cập nhật khi thời gian của gói tin mới hơn thời gian đã lưu
+        if status.last_seen is None or last_seen_val > status.last_seen:
+            status.online = is_online
+            status.last_seen = last_seen_val
+        else:
+            print(f"⚠️ Bỏ qua gói tin status cũ (Replay) của máy {device_id}")
     
     db.commit()
     state_str = "ONLINE 🟢" if is_online else "OFFLINE 🔴"
@@ -111,7 +115,9 @@ def handle_status_message(db: Session, device_id: str, payload: dict):
 # =======================================================
 def on_connect(client, userdata, flags, reason_code, properties=None):
     print(f"🔌 Đã kết nối Mosquitto Broker (Mã: {reason_code})")
-    client.subscribe(MQTT_TOPIC)
+    # Match the firmware/contract QoS 1. QoS 1 may redeliver, so database
+    # deduplication by (device_id, boot_id, sequence) remains required.
+    client.subscribe(MQTT_TOPIC, qos=1)
     print(f"📡 Đang lắng nghe kênh: {MQTT_TOPIC}")
 
 def on_message(client, userdata, msg):
