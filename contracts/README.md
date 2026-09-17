@@ -17,8 +17,8 @@ Một bản tin features chứa đặc trưng + kết quả phân loại cùng c
 | crest_factor | peak(abs(x))/RMS; 0 nếu RMS bằng 0 |
 | dominant_frequency | Hz; bỏ thành phần DC |
 | band_energy | Tích phân PSD dải 10–200 Hz, đơn vị g², cần chốt chuẩn hóa/window |
-| anomaly_score | Điểm không âm; thuật toán và ngưỡng do P3 hiệu chuẩn |
-| health_state | NORMAL / WARNING / FAULT |
+| anomaly_score | Điểm không âm; null khi P3 chưa nạp model hiệu chuẩn từ dữ liệu thật |
+| health_state | OFF / NORMAL / WARNING / FAULT |
 | temperature_c | °C hoặc null nếu không có cảm biến |
 
 Không dùng OFFLINE làm health_state: mất mạng là trạng thái kết nối riêng,

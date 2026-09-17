@@ -3,9 +3,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// UNKNOWN means that no valid measurement is available. Network connectivity
-// is tracked separately and must not be encoded as a machine health state.
-enum class HealthState : uint8_t { UNKNOWN, NORMAL, WARNING, FAULT };
+// UNKNOWN means that no valid measurement is available. OFF means that the
+// monitored fan is stopped; network connectivity remains a separate state.
+enum class HealthState : uint8_t { UNKNOWN, OFF, NORMAL, WARNING, FAULT };
 
 // One processing window at the measured 800 Hz ODR. P2 fills values[] with the
 // Z-axis acceleration in g after removing the per-window DC component.
@@ -16,8 +16,7 @@ struct SampleWindow {
     float sampleRateHz;
 };
 
-// Time-domain baseline shared with P3. FFT/PSD/anomaly fields are deliberately
-// not represented until P3 implements them; never publish fake zero values.
+// Time-domain baseline shared with P3.
 struct VibrationFeatures {
     float rms;
     float peakToPeak;
@@ -30,6 +29,10 @@ struct TelemetryRecord {
     float sampleRateHz;
     uint16_t sampleCount;
     VibrationFeatures features;
+    float dominantFrequency;
+    float bandEnergy;
+    float anomalyScore;
+    bool hasAnomalyScore;
     HealthState health;
     float temperatureC;
     bool hasTemperature;

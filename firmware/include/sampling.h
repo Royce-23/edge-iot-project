@@ -4,6 +4,16 @@
 
 #include "app_types.h"
 
+enum class SamplingFailureReason : uint8_t {
+    NONE,
+    INVALID_ARGUMENT,
+    RECEIVE_TIMEOUT,
+    SENSOR_READ_ERROR,
+    NON_MONOTONIC_TIMESTAMP,
+    INVALID_SAMPLE_RATE,
+    DROPPED_SAMPLES,
+};
+
 struct SamplingMetrics {
     float targetSampleRateHz;
     float actualSampleRateHz;
@@ -16,7 +26,10 @@ struct SamplingMetrics {
     uint32_t droppedSamples;
     uint64_t firstTimestampUs;
     uint64_t lastTimestampUs;
+    SamplingFailureReason failureReason;
 };
+
+const char* samplingFailureReasonName(SamplingFailureReason reason);
 
 // P2: false means invalid/missing window. Do not classify a failed window.
 bool initSensors();
@@ -33,10 +46,14 @@ bool collectWindow(SampleWindow& output, uint64_t uptimeMs);
 
 // Diagnostic API for P2 evidence/CSV capture. timestampsUs may be nullptr when
 // timestamps are not needed. This function has a single-consumer contract.
+// A window is rejected when acquisition observes a timer/buffer overrun, a
+// sensor read error, or non-monotonic timestamps. Metrics are retained for both
+// successful and failed acquisition attempts whenever sampling has started.
 bool collectWindowWithDiagnostics(float* ax, float* ay, float* az,
                                   uint64_t* timestampsUs, std::size_t count,
                                   SamplingMetrics& metrics);
 
+// Returns metrics from the latest acquisition attempt, which may have failed.
 bool getLastSamplingMetrics(SamplingMetrics& metrics);
 std::size_t pendingSampleCount();
 

@@ -90,9 +90,12 @@ void samplingTask(void*) {
             // Keep the freshest data and explicitly count each overwritten
             // sample instead of silently blocking the sampling task.
             TimedSample discarded = {};
-            xQueueReceive(gSampleQueue, &discarded, 0);
-            incrementCounter(gBufferOverruns);
-            xQueueSendToBack(gSampleQueue, &sample, 0);
+            if (xQueueReceive(gSampleQueue, &discarded, 0) == pdTRUE) {
+                incrementCounter(gBufferOverruns);
+            }
+            if (xQueueSendToBack(gSampleQueue, &sample, 0) != pdTRUE) {
+                incrementCounter(gBufferOverruns);
+            }
         }
     }
 }
@@ -175,7 +178,7 @@ bool initSensors() {
 
     const BaseType_t taskCreated = xTaskCreatePinnedToCore(
         samplingTask, "p2_sampling", P2_SAMPLING_TASK_STACK_SIZE, nullptr,
-        P2_SAMPLING_TASK_PRIORITY, &gSamplingTask, 0);
+        P2_SAMPLING_TASK_PRIORITY, &gSamplingTask, P2_SAMPLING_TASK_CORE);
     if (taskCreated != pdPASS) {
         vQueueDelete(gSampleQueue);
         gSampleQueue = nullptr;
@@ -245,8 +248,10 @@ bool collectWindowWithDiagnostics(float* ax, float* ay, float* az,
                                   uint64_t* timestampsUs, std::size_t count,
                                   SamplingMetrics& metrics) {
     metrics = {};
+    metrics.failureReason = SamplingFailureReason::INVALID_ARGUMENT;
+    gHasLastMetrics = false;
     if (!gInitialized || gSampleQueue == nullptr || ax == nullptr || ay == nullptr ||
-        az == nullptr || count < 2) {
+        az == nullptr || count < 2 || count > P2_SAMPLING_BUFFER_CAPACITY) {
         return false;
     }
 
@@ -262,15 +267,45 @@ bool collectWindowWithDiagnostics(float* ax, float* ay, float* az,
     // Metrics need timestamps even when the caller does not request them. Use a
     // fixed global buffer: the API has a documented single-consumer contract and
     // this avoids heap fragmentation and an 8 KiB task-stack allocation.
-    if (count > P2_SAMPLING_BUFFER_CAPACITY) {
-        return false;
-    }
+    std::size_t collected = 0;
+    auto finishMetrics = [&](SamplingFailureReason failureReason) {
+        uint32_t timerEnd = 0;
+        uint32_t bufferEnd = 0;
+        uint32_t errorsEnd = 0;
+        readCounters(timerEnd, bufferEnd, errorsEnd);
+        if (collected >= 2) {
+            metrics = calculateMetrics(
+                gWindowTimestamps, collected, timerEnd - timerStart,
+                bufferEnd - bufferStart, errorsEnd - errorsStart);
+        } else {
+            metrics.targetSampleRateHz = static_cast<float>(P2_SAMPLE_RATE_HZ);
+            metrics.timerOverruns = timerEnd - timerStart;
+            metrics.bufferOverruns = bufferEnd - bufferStart;
+            metrics.sensorReadErrors = errorsEnd - errorsStart;
+            metrics.droppedSamples = metrics.timerOverruns +
+                                     metrics.bufferOverruns +
+                                     metrics.sensorReadErrors;
+        }
+        metrics.failureReason = failureReason;
+        gLastMetrics = metrics;
+        gHasLastMetrics = true;
+    };
 
     const TickType_t timeout = receiveTimeoutTicks();
     for (std::size_t index = 0; index < count; ++index) {
         TimedSample sample = {};
-        if (xQueueReceive(gSampleQueue, &sample, timeout) != pdTRUE ||
-            !sample.valid) {
+        if (xQueueReceive(gSampleQueue, &sample, timeout) != pdTRUE) {
+            finishMetrics(SamplingFailureReason::RECEIVE_TIMEOUT);
+            drainQueue();
+            return false;
+        }
+        if (!sample.valid) {
+            finishMetrics(SamplingFailureReason::SENSOR_READ_ERROR);
+            drainQueue();
+            return false;
+        }
+        if (index > 0 && sample.timestampUs <= gWindowTimestamps[index - 1]) {
+            finishMetrics(SamplingFailureReason::NON_MONOTONIC_TIMESTAMP);
             drainQueue();
             return false;
         }
@@ -278,24 +313,23 @@ bool collectWindowWithDiagnostics(float* ax, float* ay, float* az,
         ay[index] = sample.ay;
         az[index] = sample.az;
         gWindowTimestamps[index] = sample.timestampUs;
+        ++collected;
         if (timestampsUs != nullptr) {
             timestampsUs[index] = sample.timestampUs;
         }
     }
 
-    uint32_t timerEnd = 0;
-    uint32_t bufferEnd = 0;
-    uint32_t errorsEnd = 0;
-    readCounters(timerEnd, bufferEnd, errorsEnd);
-    metrics = calculateMetrics(gWindowTimestamps, count, timerEnd - timerStart,
-                               bufferEnd - bufferStart, errorsEnd - errorsStart);
-    if (metrics.actualSampleRateHz <= 0.0f) {
-        return false;
+    finishMetrics(SamplingFailureReason::NONE);
+    // A window with a known missing/error sample is not consecutive and must
+    // never reach P3 classification, even if its average rate still looks valid.
+    if (!std::isfinite(metrics.actualSampleRateHz) ||
+        metrics.actualSampleRateHz <= 0.0f) {
+        metrics.failureReason = SamplingFailureReason::INVALID_SAMPLE_RATE;
+    } else if (metrics.droppedSamples != 0U) {
+        metrics.failureReason = SamplingFailureReason::DROPPED_SAMPLES;
     }
-
     gLastMetrics = metrics;
-    gHasLastMetrics = true;
-    return true;
+    return metrics.failureReason == SamplingFailureReason::NONE;
 }
 
 bool getLastSamplingMetrics(SamplingMetrics& metrics) {
@@ -314,4 +348,25 @@ std::size_t pendingSampleCount() {
 
 bool readTemperature(float& celsius) {
     return sensors::readTemperatureC(celsius);
+}
+
+const char* samplingFailureReasonName(SamplingFailureReason reason) {
+    switch (reason) {
+        case SamplingFailureReason::NONE:
+            return "NONE";
+        case SamplingFailureReason::INVALID_ARGUMENT:
+            return "INVALID_ARGUMENT";
+        case SamplingFailureReason::RECEIVE_TIMEOUT:
+            return "RECEIVE_TIMEOUT";
+        case SamplingFailureReason::SENSOR_READ_ERROR:
+            return "SENSOR_READ_ERROR";
+        case SamplingFailureReason::NON_MONOTONIC_TIMESTAMP:
+            return "NON_MONOTONIC_TIMESTAMP";
+        case SamplingFailureReason::INVALID_SAMPLE_RATE:
+            return "INVALID_SAMPLE_RATE";
+        case SamplingFailureReason::DROPPED_SAMPLES:
+            return "DROPPED_SAMPLES";
+        default:
+            return "UNKNOWN";
+    }
 }
