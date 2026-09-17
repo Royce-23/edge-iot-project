@@ -1,0 +1,6 @@
+# Local-lab configuration. This exposes port 1883 to the LAN so the ESP32 can
+# reach the broker. Use only on a trusted private network and add credentials
+# before any deployment outside the lab.
+listener 1883
+allow_anonymous true
+persistence false

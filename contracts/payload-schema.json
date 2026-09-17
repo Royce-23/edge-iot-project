@@ -39,6 +39,7 @@
     },
     "health_state": {
       "enum": [
+        "OFF",
         "NORMAL",
         "WARNING",
         "FAULT"
@@ -71,7 +72,10 @@
       "minimum": 0
     },
     "anomaly_score": {
-      "type": "number",
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": 0
     }
   },

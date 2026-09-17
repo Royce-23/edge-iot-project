@@ -93,7 +93,18 @@ void loop() {
     SamplingMetrics metrics = {};
     if (!collectWindowWithDiagnostics(gAx, gAy, gAz, gTimestampsUs,
                                       kWindowSize, metrics)) {
-        Serial.println("# ERROR: invalid sampling window; not exported");
+        Serial.print("# ERROR: invalid sampling window; reason=");
+        Serial.print(samplingFailureReasonName(metrics.failureReason));
+        Serial.print(" timer_overruns=");
+        Serial.print(metrics.timerOverruns);
+        Serial.print(" buffer_overruns=");
+        Serial.print(metrics.bufferOverruns);
+        Serial.print(" sensor_read_errors=");
+        Serial.print(metrics.sensorReadErrors);
+        Serial.print(" dropped_samples=");
+        Serial.print(metrics.droppedSamples);
+        Serial.print(" actual_hz=");
+        Serial.println(metrics.actualSampleRateHz, 3);
         delay(500);
         return;
     }

@@ -156,6 +156,20 @@ bool readAdxl345(AccelerationSample& sample) {
         return false;
     }
 
+    // SPI itself has no acknowledgement. A disconnected/pulled MISO line
+    // commonly returns six 0x00 or six 0xFF bytes and would otherwise look
+    // like a finite, healthy acceleration sample. Gravity makes an all-zero
+    // XYZ vector invalid for this fixed fan installation.
+    bool allZero = true;
+    bool allOnes = true;
+    for (uint8_t value : bytes) {
+        allZero = allZero && value == 0x00;
+        allOnes = allOnes && value == 0xFF;
+    }
+    if (allZero || allOnes) {
+        return false;
+    }
+
     sample.xG = static_cast<float>(signedValue(bytes[0], bytes[1])) *
                     kFullResolutionGPerLsb -
                 P2_ADXL345_BIAS_X_G;

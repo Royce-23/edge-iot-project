@@ -4,7 +4,7 @@ bool OfflineQueue::begin() {
     if (handle_ != nullptr) {
         return true;
     }
-    handle_ = xQueueCreate(60, sizeof(TelemetryRecord));
+    handle_ = xQueueCreate(P1_OFFLINE_QUEUE_CAPACITY, sizeof(TelemetryRecord));
     return handle_ != nullptr;
 }
 
