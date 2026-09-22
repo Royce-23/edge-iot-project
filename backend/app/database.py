@@ -1,21 +1,26 @@
+"""Database connection shared by the API and MQTT subscriber."""
+
+import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Tạo file cơ sở dữ liệu có tên là iot_data.db nằm ngay trong thư mục backend
-SQLALCHEMY_DATABASE_URL = "sqlite:///./iot_data.db"
 
-# Kết nối SQLite (check_same_thread=False là bắt buộc dùng cho FastAPI)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./iot_data.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgres://"):]
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgresql://"):]
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite:") else {},
+    pool_pre_ping=True,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
-# Hàm này giống như "người giữ cửa" cấp phát kết nối Database cho API
+
 def get_db():
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         yield db
-    finally:
-        db.close()

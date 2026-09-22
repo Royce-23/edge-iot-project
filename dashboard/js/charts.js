@@ -318,7 +318,7 @@ function updateRMSChart(data) {
     const values =
         records.map(
             item =>
-                Number(item.rms) || 0
+                item.rms == null ? null : Number(item.rms)
         );
 
 
@@ -420,9 +420,7 @@ function updateFrequencyChart(data) {
         records.map(
 
             item =>
-                Number(
-                    item.dominant_frequency
-                ) || 0
+                item.dominant_frequency == null ? null : Number(item.dominant_frequency)
         );
 
 
@@ -618,14 +616,14 @@ function appendRealtimeChartPoint(data) {
 
     if (rmsChart) {
         rmsChart.data.labels.push(label);
-        rmsChart.data.datasets[0].data.push(Number(data.rms) || 0);
+        rmsChart.data.datasets[0].data.push(data.rms == null ? null : Number(data.rms));
         trimChart(rmsChart);
         rmsChart.update("none");
     }
 
     if (anomalyChart) {
         anomalyChart.data.labels.push(label);
-        anomalyChart.data.datasets[0].data.push(Number(data.anomaly_score) || 0);
+        anomalyChart.data.datasets[0].data.push(data.anomaly_score == null ? null : Number(data.anomaly_score));
         trimChart(anomalyChart);
         anomalyChart.update("none");
     }
@@ -633,7 +631,7 @@ function appendRealtimeChartPoint(data) {
     if (frequencyChart) {
         frequencyChart.data.labels.push(label);
         frequencyChart.data.datasets[0].data.push(
-            Number(data.dominant_frequency) || 0
+            data.dominant_frequency == null ? null : Number(data.dominant_frequency)
         );
         trimChart(frequencyChart);
         frequencyChart.update("none");
@@ -642,7 +640,7 @@ function appendRealtimeChartPoint(data) {
     if (temperatureChart) {
         temperatureChart.data.labels.push(label);
         temperatureChart.data.datasets[0].data.push(
-            Number(data.temperature_c) || 0
+            data.temperature_c == null ? null : Number(data.temperature_c)
         );
         trimChart(temperatureChart);
         temperatureChart.update("none");
@@ -672,4 +670,3 @@ function trimChart(chart) {
 }
 
 window.appendRealtimeChartPoint = appendRealtimeChartPoint;
-

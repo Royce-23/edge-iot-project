@@ -10,6 +10,8 @@ struct AppConfig {
     const char* mqttUser;
     const char* mqttPassword;
     uint16_t mqttPort;
+    bool mqttTls;
+    const char* mqttRootCa;
     uint32_t recordIntervalMs;
     uint32_t reconnectIntervalMs;
     float offRms;           // Enter OFF at or below this value.

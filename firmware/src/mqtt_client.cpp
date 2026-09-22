@@ -6,7 +6,9 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <ctime>
 #include <esp_event.h>
+#include <esp_crt_bundle.h>
 #include <esp_system.h>
 
 extern "C" {
@@ -69,7 +71,17 @@ bool writeFeaturePayload(const TelemetryRecord& record, char* output,
     document["device_id"] = config->deviceId;
     document["boot_id"] = bootId;
     document["sequence"] = record.sequence;
-    document["timestamp"] = nullptr;
+    const time_t nowUtc = time(nullptr);
+    const uint64_t nowUptimeMs =
+        static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL;
+    if (nowUtc >= 1609459200 && nowUptimeMs >= record.uptimeMs) {
+        const uint64_t elapsedSeconds =
+            (nowUptimeMs - record.uptimeMs) / 1000ULL;
+        document["timestamp"] =
+            static_cast<int64_t>(nowUtc) - static_cast<int64_t>(elapsedSeconds);
+    } else {
+        document["timestamp"] = nullptr;
+    }
     document["uptime_ms"] = record.uptimeMs;
     document["sample_rate_hz"] = record.sampleRateHz;
     document["sample_count"] = record.sampleCount;
@@ -144,6 +156,14 @@ void networkTask(void*) {
     esp_mqtt_client_config_t mqttConfig = {};
     mqttConfig.host = config->mqttHost;
     mqttConfig.port = config->mqttPort;
+    if (config->mqttTls) {
+        mqttConfig.transport = MQTT_TRANSPORT_OVER_SSL;
+        if (config->mqttRootCa != nullptr && config->mqttRootCa[0] != '\0') {
+            mqttConfig.cert_pem = config->mqttRootCa;
+        } else {
+            mqttConfig.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+        }
+    }
     mqttConfig.client_id = clientId;
     mqttConfig.username =
         config->mqttUser[0] != '\0' ? config->mqttUser : nullptr;
@@ -188,6 +208,7 @@ void networkTask(void*) {
     uint32_t nextWifiAttemptMs = millis();
     uint32_t nextMqttAttemptMs = 0;
     uint32_t lastHeartbeat = 0;
+    uint32_t lastTimeWarning = 0;
 
     for (;;) {
         const uint32_t now = millis();
@@ -233,7 +254,10 @@ void networkTask(void*) {
                 config->wifiSsid, localIp.c_str(), config->mqttHost,
                 static_cast<unsigned>(config->mqttPort));
 
-            if (!mqttStarted) {
+            configTime(0, 0, "pool.ntp.org", "time.google.com");
+            if (config->mqttTls) {
+                mqttReconnectRequested.store(true);
+            } else if (!mqttStarted) {
                 if (esp_mqtt_client_start(mqttClient) != ESP_OK) {
                     Serial.println("[NET] Cannot start ESP-MQTT client");
                     mqttReconnectRequested.store(true);
@@ -241,10 +265,17 @@ void networkTask(void*) {
                     mqttStarted = true;
                 }
             } else {
-                // The MQTT client remains allocated while Wi-Fi is down. It
-                // reconnects only after the station owns an IP address again.
                 mqttReconnectRequested.store(true);
             }
+        }
+
+        if (config->mqttTls && time(nullptr) < 1609459200) {
+            if (now - lastTimeWarning >= 5000U) {
+                Serial.println("[NET] Waiting for UTC time before MQTT TLS");
+                lastTimeWarning = now;
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
         }
 
         const bool mqttIsOnline = online.load();

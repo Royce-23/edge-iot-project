@@ -8,9 +8,9 @@
 // CONFIG
 // =========================================================
 
-const API_BASE = "https://edge-iot-project-1.onrender.com";
+const API_BASE = (window.EDGE_IOT_API_BASE || "https://edge-iot-project-1.onrender.com").replace(/\/$/, "");
 
-const DEVICE_ID = "motor_01";
+const DEVICE_ID = new URLSearchParams(window.location.search).get("device") || "motor_01";
 
 const REFRESH_INTERVAL = 2000;
 
@@ -18,7 +18,7 @@ let ws = null;
 let wsConnected = false;
 
 function connectWebSocket() {
-    const wsUrl = `wss://edge-iot-project-1.onrender.com/ws/${DEVICE_ID}`;
+    const wsUrl = `${API_BASE.replace(/^http/, "ws")}/ws/${encodeURIComponent(DEVICE_ID)}`;
 
     console.log("[WS] Connecting:", wsUrl);
 
@@ -28,8 +28,7 @@ function connectWebSocket() {
         wsConnected = true;
         console.log("[WS] Connected");
 
-        // WebSocket đã kết nối
-        updateConnectionStatus(true);
+        // WebSocket chỉ chứng minh backend hoạt động, không chứng minh ESP32 online.
     };
 
     ws.onmessage = (event) => {
@@ -80,7 +79,7 @@ function handleRealtimeFeatures(data) {
 
     // Cập nhật trạng thái máy
     if (data.health_state) {
-        updateMachineStatus(data.health_state, true, false);
+        refreshDashboard();
     }
 
     // Cập nhật thông tin device
@@ -98,9 +97,7 @@ function handleRealtimeStatus(data) {
 
     console.log("[WS] Realtime status:", data);
 
-    if (data.online !== undefined) {
-        updateConnectionStatus(data.online);
-    }
+    refreshDashboard();
 }
 
 
@@ -111,7 +108,7 @@ function handleRealtimeEvent(data) {
 
     // Sau khi nhận event mới,
     // tải lại danh sách event từ REST API
-    loadEvents();
+    loadEvents().then(renderEvents).catch(error => console.warn("Không tải được sự kiện:", error));
 }
 
 // =========================================================
@@ -287,7 +284,10 @@ function deviceUrl(path) {
 // UPDATE CONNECTION STATUS
 // =========================================================
 
-function updateConnectionStatus(connected) {
+function updateConnectionStatus(health) {
+
+    const backendConnected = health?.backend === "ok";
+    const connected = backendConnected && health.mqtt_connected === true;
 
     const dot =
         $("connectionDot");
@@ -309,7 +309,7 @@ function updateConnectionStatus(connected) {
         if (text) {
 
             text.textContent =
-                "CONNECTED TO N4";
+                "MQTT CONNECTED";
         }
 
     }
@@ -325,8 +325,11 @@ function updateConnectionStatus(connected) {
 
         if (text) {
 
-            text.textContent =
-                "BACKEND OFFLINE";
+            text.textContent = !backendConnected
+                ? "BACKEND OFFLINE"
+                : health.mqtt_enabled === false
+                    ? "MQTT CHƯA CẤU HÌNH"
+                    : "MQTT OFFLINE";
         }
     }
 }
@@ -495,19 +498,19 @@ function updateFreshness(latest, status) {
 
     if (!latest) {
 
-        element.textContent = "No data";
+        element.textContent = "Chưa có dữ liệu từ thiết bị";
 
         return;
     }
 
-    const receivedAt = latest.received_at;
+    const receivedAt = latest.timestamp ?? latest.received_at;
 
     if (
         receivedAt === null ||
         receivedAt === undefined
     ) {
 
-        element.textContent = "Updated recently";
+        element.textContent = "Không rõ thời gian đo";
 
         return;
     }
@@ -531,7 +534,7 @@ function updateFreshness(latest, status) {
 
     if (isNaN(receivedTime.getTime())) {
 
-        element.textContent = "Updated recently";
+        element.textContent = "Không rõ thời gian đo";
 
         return;
     }
@@ -584,7 +587,7 @@ function isDataStale(latest) {
     }
 
     const receivedAt =
-        latest.received_at;
+        latest.timestamp ?? latest.received_at;
 
     if (
         receivedAt === null ||
@@ -711,6 +714,15 @@ function updateMetrics(data) {
                     1
                 )} °C`;
         }
+    }
+}
+
+function clearMetrics() {
+    for (const [id, value] of Object.entries({
+        rmsValue: "- g", anomalyValue: "-", frequencyValue: "- Hz",
+        temperatureValue: "- °C"
+    })) {
+        if ($(id)) $(id).textContent = value;
     }
 }
 
@@ -1594,6 +1606,13 @@ async function refreshDashboard() {
 
     try {
 
+        let backendHealth = null;
+        try {
+            backendHealth = await apiGet(`${API_BASE}/api/health`);
+        } catch (error) {
+            console.warn("Không kết nối được backend:", error.message);
+        }
+
         // -----------------------------------------
         // LATEST
         // -----------------------------------------
@@ -1682,24 +1701,7 @@ async function refreshDashboard() {
 // CHECK BACKEND
 // -----------------------------------------
 
-if (
-    latest ||
-    history.length > 0 ||
-    events.length > 0 ||
-    status
-) {
-
-    updateConnectionStatus(
-        true
-    );
-
-}
-else {
-
-    updateConnectionStatus(
-        false
-    );
-}
+updateConnectionStatus(backendHealth);
 
 
         // -----------------------------------------
@@ -1716,6 +1718,8 @@ else {
             updateDeviceInfo(
                 latest
             );
+        } else {
+            clearMetrics();
         }
 
 
@@ -1730,7 +1734,7 @@ else {
 
 
     const machineOnline =
-        status.online !== false &&
+        status.online === true &&
         !dataStale;
 
 
@@ -1761,12 +1765,9 @@ else {
 
             updateMachineStatus(
 
-                latest.health_state ||
-                "NORMAL",
-
-                true,
-
-                false
+                latest.health_state || "OFF",
+                false,
+                true
             );
 
 
@@ -1812,6 +1813,8 @@ if (
     updateCharts(
         allHistoryData
     );
+} else if (allHistoryData.length === 0 && typeof clearCharts === "function") {
+    clearCharts();
 }
 
 
@@ -1843,9 +1846,7 @@ applyHistoryFilter();
         );
 
 
-        updateConnectionStatus(
-            false
-        );
+        updateConnectionStatus(null);
 
 
         updateMachineStatus(

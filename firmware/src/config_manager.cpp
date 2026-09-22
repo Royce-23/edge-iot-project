@@ -8,6 +8,17 @@
 #include "secrets.example.h"
 #endif
 
+// Keep older secrets.h files buildable until their owners add TLS settings.
+#ifndef MQTT_PORT
+#define MQTT_PORT 1883
+#endif
+#ifndef MQTT_USE_TLS
+#define MQTT_USE_TLS 0
+#endif
+#ifndef MQTT_ROOT_CA
+#define MQTT_ROOT_CA ""
+#endif
+
 const AppConfig& loadConfig() {
     // RMS thresholds remain provisional until P2/P3 collect abnormal/fault data
     // and calibrate them. They are intentionally not inferred from mock data.
@@ -18,7 +29,9 @@ const AppConfig& loadConfig() {
         MQTT_HOST,
         MQTT_USER,
         MQTT_PASSWORD,
-        1883,
+        MQTT_PORT,
+        MQTT_USE_TLS != 0,
+        MQTT_ROOT_CA,
         1000,
         5000,
         0.016f,

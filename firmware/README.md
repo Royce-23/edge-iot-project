@@ -56,8 +56,24 @@ Script chỉ tạo `include/p3_model.generated.h` khi dữ liệu sạch và bal
 accuracy trên dữ liệu giữ lại đạt tối thiểu 0.80. Firmware tự nạp header này;
 nếu chưa có model hợp lệ thì tiếp tục báo `mode=RMS_BASELINE`.
 
-Để kết nối mạng, copy `include/secrets.example.h` thành `include/secrets.h`,
-điền Wi-Fi và địa chỉ IPv4 của máy chạy Mosquitto. `secrets.h` đã bị ignore.
+Để kết nối mạng, copy `include/secrets.example.h` thành `include/secrets.h`.
+Điền Wi-Fi và **hostname của MQTT broker** mà cả ESP32 và backend Render đều
+truy cập được. `MQTT_HOST` không chứa `https://` và không phải URL của backend.
+Điền cùng `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASSWORD` vào Render.
+Với broker TLS công khai, đặt `MQTT_USE_TLS=1` và để `MQTT_ROOT_CA=""` để dùng
+bộ CA có sẵn trên ESP32. Nếu broker dùng CA riêng, điền PEM CA vào
+`MQTT_ROOT_CA` (có thể dùng raw string C++ nhiều dòng). Với broker trong LAN
+dùng port 1883, đặt
+`MQTT_USE_TLS=0`; backend trên Render cần một đường mạng đến broker đó.
+`secrets.h` đã bị ignore. ID thiết bị mặc định là `motor_01` trong
+`src/config_manager.cpp`; dashboard phải xem cùng ID.
+ESP32 đồng bộ giờ UTC qua NTP khi có Wi-Fi để gắn thời điểm đo, kể cả khi
+gửi bù từ queue. Kết nối MQTT TLS đợi đồng bộ giờ trước khi bắt tay TLS.
+
+Sau khi cấu hình, chạy `pio run -d firmware -t upload` và
+`pio device monitor -b 115200`. Log cần có `Wi-Fi connected` rồi
+`MQTT connected`. Backend `/api/health` cần có `mqtt_connected=true`.
+`/api/devices/motor_01/latest` sẽ xuất hiện sau cửa sổ đo hợp lệ đầu tiên.
 
 ## Chạy riêng phần P2
 

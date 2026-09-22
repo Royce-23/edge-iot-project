@@ -5,9 +5,9 @@ Project môn IoT • Nhóm 5 người • Kế hoạch 7 tuần.
 Repo đang ở giai đoạn tích hợp. Firmware đã có luồng P1 + P2 chạy trên
 ESP32-S3: đọc ADXL345 thật, lấy mẫu định thời, trích đặc trưng time-domain,
 phân loại ngưỡng, cảnh báo cục bộ, xếp hàng RAM và gửi MQTT. FFT/anomaly của P3
-và backend/API/dashboard thật vẫn đang được hoàn thiện.
+và backend/API/dashboard đã có luồng dữ liệu thật. Cần cấu hình broker và flash thiết bị để chạy end-to-end.
 
-Luồng mục tiêu: ESP32-S3 → MQTT → Python backend → SQLite → dashboard.
+Luồng chạy: ESP32-S3 → MQTT broker → Python backend → database → dashboard.
 ESP32 phải phát hiện bất thường cục bộ ngay cả khi mất mạng.
 
 ## Bắt đầu
@@ -26,15 +26,12 @@ ESP32 phải phát hiện bất thường cục bộ ngay cả khi mất mạng.
 | test-data/ | Cả nhóm | Dữ liệu giả và công cụ mock |
 | docs/ | Cả nhóm, P5 tổng hợp | Hướng dẫn, test, báo cáo, slide |
 
-## Chạy thử ngay, không cần ESP32
-Mở terminal ở thư mục gốc repo, chạy:
-```bash
-python test-data/mock_api.py
-```
-Mở http://127.0.0.1:8000/dashboard/ để thấy bản tin mẫu.
-API mẫu: http://127.0.0.1:8000/api/devices/motor_01/latest
-Nhấn Ctrl+C để dừng. Mock chỉ phục vụ máy local và dữ liệu cố định.
-Nếu Windows không nhận `python`, thử `py`.
+## Chạy luồng dữ liệu thật
+
+Làm theo [hướng dẫn kết nối thiết bị thật](docs/CONNECT_REAL_DEVICE.md), hoặc
+xem chi tiết [backend](backend/README.md), [firmware](firmware/README.md)
+và [dashboard](dashboard/README.md). `test-data/mock_api.py` chỉ là công cụ
+kiểm thử cũ; dashboard deploy dùng API thật.
 
 ## Trạng thái ban đầu
 - [x] Cấu trúc thư mục và phân công module.
@@ -44,7 +41,7 @@ Nếu Windows không nhận `python`, thử `py`.
 - [x] Baseline RMS/peak-to-peak/crest trên cửa sổ Z đã bỏ DC.
 - [ ] Chốt contract với cả nhóm trong tuần 1.
 - [ ] P3 bổ sung FFT, band energy, anomaly score và hiệu chuẩn ngưỡng.
-- [ ] P4/P5 hoàn thiện MQTT ingestion, SQLite, API và dashboard thật.
+- [x] P4/P5 có MQTT ingestion, API và dashboard dữ liệu thật; cần cấu hình broker, database bền vững và deploy.
 
 Các thư mục có README hoặc `.gitkeep` để Git lưu lại; Git không lưu thư mục rỗng.
 Không đưa mật khẩu Wi-Fi, token, `.env`, database hoặc dataset lớn vào Git.
