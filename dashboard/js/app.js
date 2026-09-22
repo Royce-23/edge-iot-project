@@ -10,7 +10,7 @@
 
 const API_BASE = "https://edge-iot-project-1.onrender.com";
 
-const DEVICE_ID = "MACHINE-01";
+const DEVICE_ID = "motor_01";
 
 const REFRESH_INTERVAL = 2000;
 
@@ -1546,7 +1546,7 @@ function exportHistoryCSV() {
 
 
     const filename =
-        `MACHINE-01_history_${
+        `motor_01_history_${
             now.getFullYear()
         }-${
             String(

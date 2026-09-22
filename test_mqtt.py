@@ -11,7 +11,7 @@ payload = {
 }
 
 client.publish(
-    "machine/MACHINE-01/status",
+    "machine/motor_01/status",
     json.dumps(payload),
     qos=1
 )
