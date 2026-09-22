@@ -8,7 +8,7 @@
 // CONFIG
 // =========================================================
 
-const API_BASE = (window.EDGE_IOT_API_BASE || "https://edge-iot-project-1.onrender.com").replace(/\/$/, "");
+const API_BASE = (window.EDGE_IOT_API_BASE || "https://edge-iot-project.onrender.com").replace(/\/$/, "");
 
 const DEVICE_ID = new URLSearchParams(window.location.search).get("device") || "motor_01";
 

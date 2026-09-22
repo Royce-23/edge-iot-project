@@ -6,7 +6,7 @@ Mã nguồn đã có luồng **ESP32-S3 → MQTT broker → backend Render → d
 
 ## 1. Chuẩn bị MQTT broker
 
-Bạn cần một broker MQTT mà **cả ESP32 trên Wi-Fi và backend trên Render** truy cập được. `edge-iot-project-1.onrender.com` là backend HTTP, không phải MQTT broker. Nếu chưa có broker, có thể tạo một cluster HiveMQ Cloud và credentials trong **Access Management** theo [hướng dẫn chính thức](https://docs.hivemq.com/hivemq-cloud/quick-start-guide.html). Ghi lại hostname, port (thường là `8883` cho TLS), username và password. Không đặt `https://` hoặc `mqtts://` trong hostname.
+Bạn cần một broker MQTT mà **cả ESP32 trên Wi-Fi và backend trên Render** truy cập được. `edge-iot-project.onrender.com` là backend HTTP, không phải MQTT broker. Nếu chưa có broker, có thể tạo một cluster HiveMQ Cloud và credentials trong **Access Management** theo [hướng dẫn chính thức](https://docs.hivemq.com/hivemq-cloud/quick-start-guide.html). Ghi lại hostname, port (thường là `8883` cho TLS), username và password. Không đặt `https://` hoặc `mqtts://` trong hostname.
 
 ## 2. Cập nhật backend trên Render
 
@@ -37,7 +37,7 @@ Deploy backend, sau đó mở `https://<backend-cua-ban>/api/health`. Kết qu�
 
 Dịch vụ static site cần deploy lại thư mục `dashboard`. Nếu Root Directory để trống, Publish Directory là `dashboard`. Nếu Root Directory là `dashboard`, Publish Directory là `.`. [Render giải thích các đường dẫn này](https://render.com/docs/monorepo-support).
 
-Trong `dashboard/js/app.js`, `API_BASE` mặc định là `https://edge-iot-project-1.onrender.com`. Nếu Web Service backend của bạn có URL khác, sửa giá trị đó rồi deploy lại static site. Dashboard mặc định xem `motor_01`; để xem thiết bị khác, thêm `?device=<device_id>` vào URL.
+Trong `dashboard/js/app.js`, `API_BASE` mặc định là `https://edge-iot-project.onrender.com`. Nếu Web Service backend của bạn có URL khác, sửa giá trị đó rồi deploy lại static site. Dashboard mặc định xem `motor_01`; để xem thiết bị khác, thêm `?device=<device_id>` vào URL.
 
 ## 4. Nạp firmware cho ESP32-S3
 
