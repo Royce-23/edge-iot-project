@@ -8,7 +8,7 @@
 // CONFIG
 // =========================================================
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://edge-iot-project-1.onrender.com";
 
 const DEVICE_ID = "MACHINE-01";
 
@@ -18,7 +18,7 @@ let ws = null;
 let wsConnected = false;
 
 function connectWebSocket() {
-    const wsUrl = `ws://127.0.0.1:8000/ws/${DEVICE_ID}`;
+    const wsUrl = `wss://edge-iot-project-1.onrender.com/ws/${DEVICE_ID}`;
 
     console.log("[WS] Connecting:", wsUrl);
 
