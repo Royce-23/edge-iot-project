@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // =========================================================
 // EDGE-IOT DASHBOARD - CHARTS
 // Dữ liệu lấy từ REST API của Backend N4
@@ -673,6 +672,4 @@ function trimChart(chart) {
 }
 
 window.appendRealtimeChartPoint = appendRealtimeChartPoint;
-=======
-// P5 TODO: implement charts; see contracts/rest-api.md.
->>>>>>> 0f1fedffb9f7fb4f315d1a143226d9b240b6bf77
+
