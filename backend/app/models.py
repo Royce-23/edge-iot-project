@@ -58,12 +58,9 @@ class HealthEvent(Base):
     type = Column(String, nullable=False)
     message = Column(String)
 
-<<<<<<< HEAD
     acknowledged = Column(Boolean, default=False, nullable=False)
     acknowledged_at = Column(String, nullable=True)
 
-=======
->>>>>>> 0f1fedffb9f7fb4f315d1a143226d9b240b6bf77
 class DeviceStatus(Base):
     """Bảng 4: Trạng thái Online/Offline"""
     __tablename__ = "device_status"
