@@ -42,7 +42,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer(("127.0.0.1", 8000), partial(Handler, directory=str(ROOT)))
-    print("Fixed MOCK: http://127.0.0.1:8000/dashboard/ (Ctrl+C to stop)", flush=True)
+    print("Fixed MOCK: https://edge-iot-project-1.onrender.com (Ctrl+C to stop)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
