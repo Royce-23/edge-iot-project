@@ -1,18 +1,27 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    Header
+)
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from sqlalchemy.orm import Session
 
 from .database import engine, get_db
-from . import models, mqtt_service
+from . import models
 
 import time
+import os
 
 
 # =========================================================
 # DATABASE
 # =========================================================
 
-# Tự động tạo bảng nếu chưa có
 models.Base.metadata.create_all(bind=engine)
 
 
@@ -33,10 +42,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # =========================================================
 # WEBSOCKET MANAGER
@@ -45,7 +54,6 @@ app.add_middleware(
 class ConnectionManager:
 
     def __init__(self):
-        # Mỗi device có danh sách WebSocket riêng
         self.active_connections = {}
 
     async def connect(
@@ -143,17 +151,21 @@ manager = ConnectionManager()
 @app.on_event("startup")
 def startup_event():
 
-    print("[SYSTEM] Starting Edge-IoT backend...")
-
-    # Cho MQTT service biết WebSocket manager
-    mqtt_service.set_websocket_manager(
-        manager
+    print(
+        "[SYSTEM] Starting Edge-IoT backend..."
     )
 
-    # Khởi động MQTT
-    mqtt_service.start_mqtt()
+    print(
+        "[SYSTEM] HTTP/HTTPS ingestion mode"
+    )
 
-    print("[SYSTEM] Backend startup complete")
+    print(
+        "[SYSTEM] MQTT disabled"
+    )
+
+    print(
+        "[SYSTEM] Backend startup complete"
+    )
 
 
 # =========================================================
@@ -175,8 +187,6 @@ async def websocket_endpoint(
 
         while True:
 
-            # Giữ WebSocket mở.
-            # Dashboard có thể gửi text/ping nếu cần.
             await websocket.receive_text()
 
     except WebSocketDisconnect:
@@ -199,7 +209,574 @@ async def websocket_endpoint(
 
 
 # =========================================================
-# 1. API LẤY DANH SÁCH THIẾT BỊ
+# 1. ESP32 → BACKEND
+# NHẬN FEATURE DATA
+# =========================================================
+
+@app.post("/api/ingest/features")
+async def ingest_features(
+    payload: dict,
+    x_device_key: str = Header(default="")
+):
+
+    # -----------------------------------------------------
+    # DEVICE KEY
+    # -----------------------------------------------------
+
+    device_key = os.getenv(
+        "DEVICE_KEY",
+        ""
+    )
+
+    if device_key:
+
+        if x_device_key != device_key:
+
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid device key"
+            )
+
+
+    # -----------------------------------------------------
+    # DEVICE ID
+    # -----------------------------------------------------
+
+    device_id = payload.get(
+        "device_id",
+        "motor_01"
+    )
+
+
+    # -----------------------------------------------------
+    # REQUIRED DATA
+    # -----------------------------------------------------
+
+    boot_id = payload.get(
+        "boot_id"
+    )
+
+    sequence = payload.get(
+        "sequence"
+    )
+
+    if not boot_id:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Missing boot_id"
+        )
+
+    if sequence is None:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Missing sequence"
+        )
+
+
+    # -----------------------------------------------------
+    # DATABASE
+    # -----------------------------------------------------
+
+    db = next(get_db())
+
+    try:
+
+        # -------------------------------------------------
+        # CHỐNG LƯU TRÙNG
+        # -------------------------------------------------
+
+        existing = (
+            db.query(
+                models.FeatureRecord
+            )
+            .filter(
+                models.FeatureRecord.device_id
+                == device_id,
+
+                models.FeatureRecord.boot_id
+                == boot_id,
+
+                models.FeatureRecord.sequence
+                == sequence
+            )
+            .first()
+        )
+
+        if existing:
+
+            print(
+                f"[HTTP] Duplicate ignored: "
+                f"{device_id} | "
+                f"boot={boot_id} | "
+                f"seq={sequence}"
+            )
+
+            return {
+                "success": True,
+                "duplicate": True,
+                "id": existing.id,
+                "device_id": device_id,
+                "sequence": sequence
+            }
+
+
+        # -------------------------------------------------
+        # TẠO DEVICE NẾU CHƯA CÓ
+        # -------------------------------------------------
+
+        device = (
+            db.query(
+                models.Device
+            )
+            .filter(
+                models.Device.id
+                == device_id
+            )
+            .first()
+        )
+
+        if not device:
+
+            device = models.Device(
+                id=device_id
+            )
+
+            db.add(device)
+
+            db.commit()
+
+
+        # -------------------------------------------------
+        # FEATURE DATA
+        # -------------------------------------------------
+
+        now = time.time()
+
+        record = models.FeatureRecord(
+
+            device_id=device_id,
+
+            boot_id=boot_id,
+
+            sequence=sequence,
+
+            timestamp=payload.get(
+                "timestamp",
+                now
+            ),
+
+            received_at=now,
+
+            uptime_ms=payload.get(
+                "uptime_ms",
+                0
+            ),
+
+            sample_rate_hz=payload.get(
+                "sample_rate_hz",
+                0
+            ),
+
+            sample_count=payload.get(
+                "sample_count",
+                0
+            ),
+
+            rms=payload.get(
+                "rms",
+                0
+            ),
+
+            peak_to_peak=payload.get(
+                "peak_to_peak",
+                0
+            ),
+
+            crest_factor=payload.get(
+                "crest_factor",
+                0
+            ),
+
+            dominant_frequency=payload.get(
+                "dominant_frequency",
+                0
+            ),
+
+            band_energy=payload.get(
+                "band_energy",
+                0
+            ),
+
+            anomaly_score=payload.get(
+                "anomaly_score",
+                0
+            ),
+
+            health_state=payload.get(
+                "health_state",
+                "NORMAL"
+            ),
+
+            temperature_c=payload.get(
+                "temperature_c",
+                0
+            )
+        )
+
+
+        db.add(record)
+
+
+        # -------------------------------------------------
+        # HEALTH EVENT
+        # -------------------------------------------------
+
+        health_state = payload.get(
+            "health_state",
+            "NORMAL"
+        )
+
+        if health_state in [
+            "WARNING",
+            "ABNORMAL",
+            "FAULT"
+        ]:
+
+            event_id = (
+                f"{device_id}_"
+                f"{boot_id}_"
+                f"{sequence}"
+            )
+
+            existing_event = (
+                db.query(
+                    models.HealthEvent
+                )
+                .filter(
+                    models.HealthEvent.event_id
+                    == event_id
+                )
+                .first()
+            )
+
+            if not existing_event:
+
+                event = models.HealthEvent(
+
+                    event_id=event_id,
+
+                    device_id=device_id,
+
+                    timestamp=payload.get(
+                        "timestamp",
+                        now
+                    ),
+
+                    received_at=now,
+
+                    type=health_state,
+
+                    message=(
+                        f"Machine {device_id}: "
+                        f"{health_state}"
+                    ),
+
+                    acknowledged=False
+                )
+
+                db.add(event)
+
+
+        # -------------------------------------------------
+        # COMMIT
+        # -------------------------------------------------
+
+        db.commit()
+
+        db.refresh(record)
+
+
+        # -------------------------------------------------
+        # WEBSOCKET → DASHBOARD
+        # -------------------------------------------------
+
+        await manager.broadcast(
+
+            device_id,
+
+            {
+                "type": "features",
+
+                "device_id": device_id,
+
+                "data": {
+
+                    "id": record.id,
+
+                    "device_id": record.device_id,
+
+                    "boot_id": record.boot_id,
+
+                    "sequence": record.sequence,
+
+                    "timestamp": record.timestamp,
+
+                    "uptime_ms": record.uptime_ms,
+
+                    "sample_rate_hz":
+                        record.sample_rate_hz,
+
+                    "sample_count":
+                        record.sample_count,
+
+                    "rms": record.rms,
+
+                    "peak_to_peak":
+                        record.peak_to_peak,
+
+                    "crest_factor":
+                        record.crest_factor,
+
+                    "dominant_frequency":
+                        record.dominant_frequency,
+
+                    "band_energy":
+                        record.band_energy,
+
+                    "anomaly_score":
+                        record.anomaly_score,
+
+                    "health_state":
+                        record.health_state,
+
+                    "temperature_c":
+                        record.temperature_c
+                }
+            }
+        )
+
+
+        print(
+            f"[HTTP] Features received: "
+            f"{device_id} | "
+            f"seq={sequence} | "
+            f"state={health_state}"
+        )
+
+
+        return {
+
+            "success": True,
+
+            "duplicate": False,
+
+            "id": record.id,
+
+            "device_id": device_id,
+
+            "sequence": sequence
+        }
+
+
+    except HTTPException:
+
+        db.rollback()
+
+        raise
+
+
+    except Exception as e:
+
+        db.rollback()
+
+        print(
+            f"[HTTP] Features error: {e}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        db.close()
+
+
+# =========================================================
+# 2. ESP32 → BACKEND
+# NHẬN STATUS
+# =========================================================
+
+@app.post("/api/ingest/status")
+async def ingest_status(
+    payload: dict,
+    x_device_key: str = Header(default="")
+):
+
+    # -----------------------------------------------------
+    # DEVICE KEY
+    # -----------------------------------------------------
+
+    device_key = os.getenv(
+        "DEVICE_KEY",
+        ""
+    )
+
+    if device_key:
+
+        if x_device_key != device_key:
+
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid device key"
+            )
+
+
+    device_id = payload.get(
+        "device_id",
+        "motor_01"
+    )
+
+
+    db = next(get_db())
+
+    try:
+
+        # -------------------------------------------------
+        # DEVICE
+        # -------------------------------------------------
+
+        device = (
+            db.query(
+                models.Device
+            )
+            .filter(
+                models.Device.id
+                == device_id
+            )
+            .first()
+        )
+
+        if not device:
+
+            device = models.Device(
+                id=device_id
+            )
+
+            db.add(device)
+
+
+        # -------------------------------------------------
+        # STATUS
+        # -------------------------------------------------
+
+        status = (
+            db.query(
+                models.DeviceStatus
+            )
+            .filter(
+                models.DeviceStatus.device_id
+                == device_id
+            )
+            .first()
+        )
+
+        now = time.time()
+
+        online = payload.get(
+            "online",
+            True
+        )
+
+
+        if not status:
+
+            status = models.DeviceStatus(
+
+                device_id=device_id,
+
+                online=online,
+
+                last_seen=now
+            )
+
+            db.add(status)
+
+        else:
+
+            status.online = online
+
+            status.last_seen = now
+
+
+        db.commit()
+
+
+        # -------------------------------------------------
+        # WEBSOCKET → DASHBOARD
+        # -------------------------------------------------
+
+        await manager.broadcast(
+
+            device_id,
+
+            {
+                "type": "status",
+
+                "device_id": device_id,
+
+                "data": {
+
+                    "online":
+                        status.online,
+
+                    "last_seen":
+                        status.last_seen
+                }
+            }
+        )
+
+
+        print(
+            f"[HTTP] Status received: "
+            f"{device_id} | "
+            f"online={online}"
+        )
+
+
+        return {
+
+            "success": True,
+
+            "device_id": device_id,
+
+            "online": status.online
+        }
+
+
+    except Exception as e:
+
+        db.rollback()
+
+        print(
+            f"[HTTP] Status error: {e}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        db.close()
+
+
+# =========================================================
+# 3. API LẤY DANH SÁCH THIẾT BỊ
 # =========================================================
 
 @app.get("/api/devices")
@@ -215,17 +792,22 @@ def get_devices(
     )
 
     return [
+
         {
             "device_id": s.device_id,
+
             "online": s.online,
+
             "last_seen": s.last_seen
         }
+
         for s in statuses
+
     ]
 
 
 # =========================================================
-# 2. API LẤY DỮ LIỆU MỚI NHẤT
+# 4. API LẤY DỮ LIỆU MỚI NHẤT
 # =========================================================
 
 @app.get("/api/devices/{device_id}/latest")
@@ -239,8 +821,8 @@ def get_latest(
             models.FeatureRecord
         )
         .filter(
-            models.FeatureRecord.device_id ==
-            device_id
+            models.FeatureRecord.device_id
+            == device_id
         )
         .order_by(
             models.FeatureRecord.id.desc()
@@ -252,14 +834,17 @@ def get_latest(
 
         raise HTTPException(
             status_code=404,
-            detail="Chưa có dữ liệu đo đạc cho máy này"
+            detail=(
+                "Chưa có dữ liệu đo đạc "
+                "cho máy này"
+            )
         )
 
     return record
 
 
 # =========================================================
-# 3. API LẤY LỊCH SỬ
+# 5. API LẤY LỊCH SỬ
 # =========================================================
 
 @app.get("/api/devices/{device_id}/history")
@@ -270,6 +855,7 @@ def get_history(
 ):
 
     if limit < 1 or limit > 1000:
+
         limit = 100
 
     records = (
@@ -277,8 +863,8 @@ def get_history(
             models.FeatureRecord
         )
         .filter(
-            models.FeatureRecord.device_id ==
-            device_id
+            models.FeatureRecord.device_id
+            == device_id
         )
         .order_by(
             models.FeatureRecord.id.desc()
@@ -287,12 +873,11 @@ def get_history(
         .all()
     )
 
-    # Trả về từ cũ -> mới
     return records[::-1]
 
 
 # =========================================================
-# 4. API LẤY LỊCH SỬ CẢNH BÁO
+# 6. API LẤY LỊCH SỬ CẢNH BÁO
 # =========================================================
 
 @app.get("/api/devices/{device_id}/events")
@@ -303,6 +888,7 @@ def get_events(
 ):
 
     if limit < 1 or limit > 1000:
+
         limit = 100
 
     events = (
@@ -310,8 +896,8 @@ def get_events(
             models.HealthEvent
         )
         .filter(
-            models.HealthEvent.device_id ==
-            device_id
+            models.HealthEvent.device_id
+            == device_id
         )
         .order_by(
             models.HealthEvent.id.desc()
@@ -324,7 +910,7 @@ def get_events(
 
 
 # =========================================================
-# 5. API TRẠNG THÁI MẠNG
+# 7. API TRẠNG THÁI THIẾT BỊ
 # =========================================================
 
 @app.get("/api/devices/{device_id}/status")
@@ -338,8 +924,8 @@ def get_status(
             models.DeviceStatus
         )
         .filter(
-            models.DeviceStatus.device_id ==
-            device_id
+            models.DeviceStatus.device_id
+            == device_id
         )
         .first()
     )
@@ -348,24 +934,30 @@ def get_status(
 
         raise HTTPException(
             status_code=404,
-            detail="Không tìm thấy trạng thái thiết bị"
+            detail=(
+                "Không tìm thấy "
+                "trạng thái thiết bị"
+            )
         )
 
+
     is_stale = False
+
 
     latest_record = (
         db.query(
             models.FeatureRecord
         )
         .filter(
-            models.FeatureRecord.device_id ==
-            device_id
+            models.FeatureRecord.device_id
+            == device_id
         )
         .order_by(
             models.FeatureRecord.id.desc()
         )
         .first()
     )
+
 
     if latest_record:
 
@@ -390,16 +982,25 @@ def get_status(
 
         is_stale = True
 
+
     return {
-        "device_id": status.device_id,
-        "online": status.online,
-        "last_seen": status.last_seen,
-        "stale": is_stale
+
+        "device_id":
+            status.device_id,
+
+        "online":
+            status.online,
+
+        "last_seen":
+            status.last_seen,
+
+        "stale":
+            is_stale
     }
 
 
 # =========================================================
-# 6. API ACKNOWLEDGE EVENT
+# 8. API ACKNOWLEDGE EVENT
 # =========================================================
 
 @app.post("/api/events/{event_id}/ack")
@@ -413,8 +1014,8 @@ def acknowledge_event(
             models.HealthEvent
         )
         .filter(
-            models.HealthEvent.event_id ==
-            event_id
+            models.HealthEvent.event_id
+            == event_id
         )
         .first()
     )
@@ -425,6 +1026,7 @@ def acknowledge_event(
             status_code=404,
             detail="Không tìm thấy event"
         )
+
 
     if not event.acknowledged:
 
@@ -438,16 +1040,24 @@ def acknowledge_event(
 
         db.refresh(event)
 
+
     return {
+
         "success": True,
-        "event_id": event.event_id,
-        "acknowledged": event.acknowledged,
-        "acknowledged_at": event.acknowledged_at
+
+        "event_id":
+            event.event_id,
+
+        "acknowledged":
+            event.acknowledged,
+
+        "acknowledged_at":
+            event.acknowledged_at
     }
 
 
 # =========================================================
-# 7. API TÌM EVENT THEO ID
+# 9. API TÌM EVENT THEO ID
 # =========================================================
 
 @app.get("/api/events/{event_id}")
@@ -461,8 +1071,8 @@ def get_event(
             models.HealthEvent
         )
         .filter(
-            models.HealthEvent.event_id ==
-            event_id
+            models.HealthEvent.event_id
+            == event_id
         )
         .first()
     )
@@ -475,4 +1085,3 @@ def get_event(
         )
 
     return event
-
