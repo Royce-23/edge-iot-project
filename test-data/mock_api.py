@@ -41,7 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(content)
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), partial(Handler, directory=str(ROOT)))
+    server = ThreadingHTTPServer(("https://edge-iot-project-1.onrender.com", 8000), partial(Handler, directory=str(ROOT)))
     print("Fixed MOCK: https://edge-iot-project-1.onrender.com (Ctrl+C to stop)", flush=True)
     try:
         server.serve_forever()
