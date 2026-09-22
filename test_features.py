@@ -99,7 +99,7 @@ try:
         # ==============================
 
         result = client.publish(
-            "machine/MACHINE-01/features",
+            "machine/motor_01/features",
             message,
             qos=1
         )
