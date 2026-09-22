@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "device_id": "motor_01",
+  "boot_id": "demo_boot_001",
+  "sequence": 1,
+  "timestamp": 1788220800,
+  "uptime_ms": 1000,
+  "sample_rate_hz": 800,
+  "sample_count": 512,
+  "rms": 0.42,
+  "peak_to_peak": 1.8,
+  "crest_factor": 3.1,
+  "dominant_frequency": 48.5,
+  "band_energy": 0.15,
+  "anomaly_score": 2.35,
+  "health_state": "WARNING",
+  "temperature_c": null
+}

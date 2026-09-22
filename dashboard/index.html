@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
+    <title>Edge-IoT Predictive Maintenance</title>
+
+    <link rel="stylesheet"
+          href="css/style.css">
+
+    <!-- Chart.js -->
+</head>
+
+<body>
+
+    <!-- ================= HEADER ================= -->
+    <header class="topbar">
+
+        <div class="title-area">
+            <h1>Edge-IoT Predictive Maintenance</h1>
+            <p>Rotating Machinery Monitoring Dashboard</p>
+        </div>
+
+        <div class="connection-status">
+
+            <span id="connectionDot"
+                  class="status-dot online">
+            </span>
+
+            <span id="connectionText">
+                MOCK DATA
+            </span>
+
+        </div>
+
+    </header>
+
+
+    <!-- ================= MAIN ================= -->
+    <main class="container">
+
+
+        <!-- ================= MACHINE OVERVIEW ================= -->
+        <section class="overview-grid">
+
+
+            <!-- MACHINE STATUS -->
+            <div class="card status-card">
+
+                <div class="card-title">
+                    MACHINE STATUS
+                </div>
+
+                <div id="machineStatus"
+                     class="big-status normal">
+
+                    NORMAL
+
+                </div>
+
+                <div id="freshness"
+                     class="muted">
+
+                    Updated just now
+
+                </div>
+
+            </div>
+
+
+            <!-- RMS -->
+            <div class="card metric-card">
+
+                <span class="metric-title">
+                    RMS
+                </span>
+
+                <strong id="rmsValue">
+                    0.000 g
+                </strong>
+
+                <span class="metric-description">
+                    Vibration level
+                </span>
+
+            </div>
+
+
+            <!-- ANOMALY SCORE -->
+            <div class="card metric-card">
+
+                <span class="metric-title">
+                    ANOMALY SCORE
+                </span>
+
+                <strong id="anomalyValue">
+                    0.000
+                </strong>
+
+                <span class="metric-description">
+                    Detection score
+                </span>
+
+            </div>
+
+
+            <!-- FREQUENCY -->
+            <div class="card metric-card">
+
+                <span class="metric-title">
+                    DOMINANT FREQUENCY
+                </span>
+
+                <strong id="frequencyValue">
+                    0.0 Hz
+                </strong>
+
+                <span class="metric-description">
+                    Peak frequency
+                </span>
+
+            </div>
+
+
+            <!-- TEMPERATURE -->
+            <div class="card metric-card">
+
+                <span class="metric-title">
+                    TEMPERATURE
+                </span>
+
+                <strong id="temperatureValue">
+                    0.0 °C
+                </strong>
+
+                <span class="metric-description">
+                    Temperature sensor
+                </span>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================= CHARTS ================= -->
+        <section class="charts-grid">
+
+
+            <!-- RMS CHART -->
+            <div class="card chart-card">
+
+                <div class="card-title">
+                    RMS HISTORY
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="rmsChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <!-- ANOMALY CHART -->
+            <div class="card chart-card">
+
+                <div class="card-title">
+                    ANOMALY SCORE
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="anomalyChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <!-- FREQUENCY CHART -->
+            <div class="card chart-card">
+
+                <div class="card-title">
+                    DOMINANT FREQUENCY
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="frequencyChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <!-- TEMPERATURE CHART -->
+            <div class="card chart-card">
+
+                <div class="card-title">
+                    TEMPERATURE
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+
+            </div>
+
+        </section>
+
+<!-- ================= HISTORY ================= -->
+<section class="card history-card">
+
+    <div class="section-header">
+
+        <div class="card-title">
+            SENSOR DATA HISTORY
+        </div>
+
+        <button id="exportCsvBtn"
+                class="btn">
+            Export CSV
+        </button>
+
+    </div>
+
+
+    <!-- FILTER -->
+    <div class="history-filter">
+
+        <div class="filter-group">
+
+            <label for="timeFilter">
+                Time range
+            </label>
+
+            <select id="timeFilter">
+
+                <option value="all">
+                    All
+                </option>
+
+                <option value="5">
+                    Last 5 minutes
+                </option>
+
+                <option value="15">
+                    Last 15 minutes
+                </option>
+
+                <option value="30">
+                    Last 30 minutes
+                </option>
+
+                <option value="60">
+                    Last 1 hour
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="filter-group">
+
+            <label for="healthFilter">
+                Health state
+            </label>
+
+            <select id="healthFilter">
+
+                <option value="ALL">
+                    All
+                </option>
+
+                <option value="NORMAL">
+                    NORMAL
+                </option>
+
+                <option value="WARNING">
+                    WARNING
+                </option>
+
+                <option value="ABNORMAL">
+                    ABNORMAL
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="history-count">
+
+            Records:
+            <strong id="historyCount">
+                0
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- HISTORY TABLE -->
+    <div class="history-table-wrapper">
+
+        <table class="history-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Time</th>
+
+                    <th>RMS</th>
+
+                    <th>Peak-to-Peak</th>
+
+                    <th>Crest Factor</th>
+
+                    <th>Frequency</th>
+
+                    <th>Band Energy</th>
+
+                    <th>Anomaly</th>
+
+                    <th>Health</th>
+
+                    <th>Temperature</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="historyTableBody">
+
+                <tr>
+
+                    <td colspan="9"
+                        class="history-empty">
+
+                        No history data.
+
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+        <!-- ================= BOTTOM ================= -->
+        <section class="bottom-grid">
+
+
+            <!-- ================= EVENTS ================= -->
+            <div class="card">
+
+                <div class="section-header">
+
+                    <div class="card-title">
+                        ALARM / EVENT HISTORY
+                    </div>
+
+                    <button id="ackAllBtn"
+                            class="btn">
+
+                        Acknowledge All
+
+                    </button>
+
+                </div>
+
+
+                <div id="eventList"
+                     class="event-list">
+
+                </div>
+
+            </div>
+
+
+
+            <!-- ================= DEVICE INFO ================= -->
+            <div class="card">
+
+                <div class="card-title">
+                    DEVICE INFORMATION
+                </div>
+
+
+                <div class="info-list">
+
+
+                    <div>
+                        <span>Device ID</span>
+                        <b id="deviceId">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Firmware</span>
+                        <b id="firmware">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>RSSI</span>
+                        <b id="rssi">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Uptime</span>
+                        <b id="uptime">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Queue Depth</span>
+                        <b id="queueDepth">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Model Version</span>
+                        <b id="modelVersion">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Config Version</span>
+                        <b id="configVersion">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Sample Rate</span>
+                        <b id="sampleRate">-</b>
+                    </div>
+
+
+                    <div>
+                        <span>Sequence</span>
+                        <b id="sequence">-</b>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+
+
+    <!-- ================= FOOTER ================= -->
+
+    <footer>
+
+        Project 04 -
+        Edge-IoT Predictive Maintenance
+        -
+        Dashboard V1
+
+    </footer>
+
+
+
+    <!-- ================= JAVASCRIPT ================= -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="js/charts.js"></script>
+
+    <script src="js/app.js"></script>
+
+</body>
+
+</html>

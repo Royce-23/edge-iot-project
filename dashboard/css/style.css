@@ -1,0 +1,860 @@
+/* =====================================================
+   GLOBAL
+===================================================== */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+
+    margin: 0;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background: #f3f5f7;
+
+    color: #17202a;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.topbar {
+
+    background: #17202a;
+
+    color: white;
+
+    padding: 18px 30px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 20px;
+}
+
+
+.title-area h1 {
+
+    margin: 0 0 5px;
+
+    font-size: 24px;
+}
+
+
+.title-area p {
+
+    margin: 0;
+
+    color: #c8d0d8;
+
+    font-size: 14px;
+}
+
+
+/* =====================================================
+   CONNECTION STATUS
+===================================================== */
+
+.connection-status {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    font-size: 13px;
+
+    font-weight: bold;
+}
+
+
+.status-dot {
+
+    width: 11px;
+
+    height: 11px;
+
+    border-radius: 50%;
+
+    display: inline-block;
+}
+
+
+.status-dot.online {
+
+    background: #2ecc71;
+}
+
+
+.status-dot.offline {
+
+    background: #e74c3c;
+}
+
+
+/* =====================================================
+   MAIN CONTAINER
+===================================================== */
+
+.container {
+
+    max-width: 1400px;
+
+    margin: 25px auto;
+
+    padding: 0 18px;
+}
+
+
+/* =====================================================
+   CARD
+===================================================== */
+
+.card {
+
+    background: white;
+
+    border-radius: 12px;
+
+    padding: 18px;
+
+    box-shadow:
+        0 2px 10px
+        rgba(0, 0, 0, 0.07);
+}
+
+
+.card-title {
+
+    font-weight: bold;
+
+    font-size: 15px;
+
+    margin-bottom: 14px;
+}
+
+
+/* =====================================================
+   OVERVIEW
+===================================================== */
+
+.overview-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        1.5fr
+        repeat(4, 1fr);
+
+    gap: 14px;
+}
+
+
+/* =====================================================
+   MACHINE STATUS
+===================================================== */
+
+.status-card {
+
+    min-height: 135px;
+}
+
+
+.big-status {
+
+    display: inline-block;
+
+    font-size: 27px;
+
+    font-weight: bold;
+
+    margin: 10px 0;
+}
+
+
+/* STATUS COLORS */
+
+.normal {
+
+    color: #1f9d55;
+}
+
+
+.warning {
+
+    color: #d68910;
+}
+
+
+.abnormal {
+
+    color: #c0392b;
+}
+
+
+.sensor-error {
+
+    color: #8e44ad;
+}
+
+
+.offline {
+
+    color: #566573;
+}
+
+
+/* =====================================================
+   FRESHNESS
+===================================================== */
+
+.muted {
+
+    color: #7b8794;
+
+    font-size: 13px;
+}
+
+
+/* =====================================================
+   METRICS
+===================================================== */
+
+.metric-card {
+
+    min-height: 135px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+}
+
+
+.metric-title {
+
+    color: #68737d;
+
+    font-size: 13px;
+
+    font-weight: bold;
+}
+
+
+.metric-card strong {
+
+    font-size: 25px;
+
+    margin: 8px 0;
+}
+
+
+.metric-description {
+
+    color: #98a2ad;
+
+    font-size: 12px;
+}
+
+
+/* =====================================================
+   CHARTS
+===================================================== */
+
+.charts-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 14px;
+
+    margin-top: 14px;
+}
+
+
+.chart-card {
+
+    min-height: 340px;
+}
+
+
+.chart-container {
+
+    position: relative;
+
+    height: 270px;
+
+    width: 100%;
+}
+
+
+/* =====================================================
+   BOTTOM GRID
+===================================================== */
+
+.bottom-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        1.5fr 1fr;
+
+    gap: 14px;
+
+    margin-top: 14px;
+}
+
+
+/* =====================================================
+   SECTION HEADER
+===================================================== */
+
+.section-header {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 10px;
+}
+
+
+/* =====================================================
+   BUTTON
+===================================================== */
+
+.btn {
+
+    border: none;
+
+    border-radius: 7px;
+
+    padding: 8px 12px;
+
+    cursor: pointer;
+
+    background: #17202a;
+
+    color: white;
+
+    font-size: 12px;
+}
+
+
+.btn:hover {
+
+    opacity: 0.85;
+}
+
+
+/* =====================================================
+   EVENTS
+===================================================== */
+
+.event-list {
+
+    max-height: 330px;
+
+    overflow-y: auto;
+}
+
+
+.event {
+
+    border-left: 4px solid #95a5a6;
+
+    background: #f8f9fa;
+
+    padding: 11px 12px;
+
+    margin-bottom: 9px;
+
+    border-radius: 5px;
+}
+
+
+.event.warning {
+
+    border-left-color: #d68910;
+}
+
+
+.event.abnormal {
+
+    border-left-color: #c0392b;
+}
+
+
+.event.normal {
+
+    border-left-color: #2ecc71;
+}
+
+
+.event-top {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    font-weight: bold;
+
+    margin-bottom: 5px;
+}
+
+
+.event small {
+
+    color: #7b8794;
+
+    font-size: 11px;
+}
+
+
+.event button {
+
+    margin-top: 7px;
+
+    padding: 5px 9px;
+
+    border: 1px solid #ccd1d5;
+
+    background: white;
+
+    border-radius: 5px;
+
+    cursor: pointer;
+}
+
+
+/* =====================================================
+   DEVICE INFORMATION
+===================================================== */
+
+.info-list > div {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    padding: 9px 0;
+
+    border-bottom:
+        1px solid #edf0f2;
+
+    gap: 15px;
+}
+
+
+.info-list span {
+
+    color: #68737d;
+}
+
+
+.info-list b {
+
+    text-align: right;
+}
+
+
+/* =====================================================
+   FOOTER
+===================================================== */
+
+footer {
+
+    text-align: center;
+
+    color: #7b8794;
+
+    font-size: 12px;
+
+    padding: 20px;
+}
+
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 1100px) {
+
+    .overview-grid {
+
+        grid-template-columns:
+            repeat(2, 1fr);
+    }
+
+
+    .status-card {
+
+        grid-column: span 2;
+    }
+
+
+    .bottom-grid {
+
+        grid-template-columns: 1fr;
+    }
+}
+
+
+@media (max-width: 750px) {
+
+    .charts-grid {
+
+        grid-template-columns: 1fr;
+    }
+
+
+    .overview-grid {
+
+        grid-template-columns: 1fr;
+    }
+
+
+    .status-card {
+
+        grid-column: auto;
+    }
+
+
+    .topbar {
+
+        flex-direction: column;
+
+        align-items: flex-start;
+    }
+}
+
+.event-ack {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.event-ack.acknowledged {
+    color: #198754;
+}
+
+.event-ack.pending {
+    color: #dc3545;
+}
+
+/* =====================================================
+   HISTORY
+===================================================== */
+
+.history-card {
+    margin-top: 14px;
+}
+
+
+/* =====================================================
+   HISTORY FILTER
+===================================================== */
+
+.history-filter {
+
+    display: flex;
+
+    align-items: end;
+
+    gap: 18px;
+
+    margin-bottom: 16px;
+
+    flex-wrap: wrap;
+}
+
+
+.filter-group {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+}
+
+
+.filter-group label {
+
+    font-size: 12px;
+
+    color: #68737d;
+
+    font-weight: bold;
+}
+
+
+.filter-group select {
+
+    min-width: 160px;
+
+    padding: 8px 10px;
+
+    border: 1px solid #ccd1d5;
+
+    border-radius: 7px;
+
+    background: white;
+
+    font-size: 13px;
+
+    cursor: pointer;
+}
+
+
+.history-count {
+
+    margin-left: auto;
+
+    color: #68737d;
+
+    font-size: 13px;
+}
+
+
+/* =====================================================
+   HISTORY TABLE
+===================================================== */
+
+.history-table-wrapper {
+
+    width: 100%;
+
+    overflow-x: auto;
+
+    max-height: 430px;
+
+    overflow-y: auto;
+
+    border:
+        1px solid #edf0f2;
+
+    border-radius: 8px;
+}
+
+
+.history-table {
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    font-size: 12px;
+
+    min-width: 950px;
+}
+
+
+.history-table th {
+
+    position: sticky;
+
+    top: 0;
+
+    background: #17202a;
+
+    color: white;
+
+    padding: 10px 8px;
+
+    text-align: left;
+
+    white-space: nowrap;
+}
+
+
+.history-table td {
+
+    padding: 9px 8px;
+
+    border-bottom:
+        1px solid #edf0f2;
+
+    white-space: nowrap;
+}
+
+
+.history-table tbody tr:hover {
+
+    background: #f8f9fa;
+}
+
+
+/* =====================================================
+   HISTORY STATUS
+===================================================== */
+
+.history-status {
+
+    font-weight: bold;
+}
+
+
+.history-status.normal {
+
+    color: #1f9d55;
+}
+
+
+.history-status.warning {
+
+    color: #d68910;
+}
+
+
+.history-status.abnormal {
+
+    color: #c0392b;
+}
+
+
+.history-empty {
+
+    text-align: center;
+
+    padding: 25px !important;
+
+    color: #7b8794;
+}
+
+
+/* =====================================================
+   RESPONSIVE HISTORY
+===================================================== */
+
+@media (max-width: 750px) {
+
+    .history-count {
+
+        margin-left: 0;
+
+        width: 100%;
+    }
+
+    .filter-group select {
+
+        min-width: 140px;
+    }
+}
+
+/* =====================================================
+   EVENT ITEMS
+===================================================== */
+
+.event-list {
+    max-height: 330px;
+    overflow-y: auto;
+}
+
+
+.event-item {
+
+    background: #f8f9fa;
+
+    border-left: 4px solid #95a5a6;
+
+    padding: 11px 12px;
+
+    margin-bottom: 9px;
+
+    border-radius: 5px;
+}
+
+
+.event-item.warning {
+    border-left-color: #d68910;
+}
+
+
+.event-item.abnormal {
+    border-left-color: #c0392b;
+}
+
+
+.event-item.sensor-error {
+    border-left-color: #8e44ad;
+}
+
+
+.event-item.normal {
+    border-left-color: #2ecc71;
+}
+
+
+/* Event header */
+
+.event-header {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin-bottom: 5px;
+}
+
+
+.event-header strong {
+
+    font-size: 13px;
+}
+
+
+.event-time {
+
+    color: #7b8794;
+
+    font-size: 11px;
+
+    white-space: nowrap;
+}
+
+
+/* Event message */
+
+.event-message {
+
+    font-size: 13px;
+
+    color: #17202a;
+
+    margin-bottom: 5px;
+}
+
+
+/* Event ID */
+
+.event-id {
+
+    color: #7b8794;
+
+    font-size: 11px;
+
+    word-break: break-all;
+}

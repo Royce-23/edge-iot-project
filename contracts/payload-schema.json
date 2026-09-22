@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FeatureRecord v1 (proposal)",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "device_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "boot_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "uptime_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sample_rate_hz": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "sample_count": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "health_state": {
+      "enum": [
+        "OFF",
+        "NORMAL",
+        "WARNING",
+        "FAULT"
+      ]
+    },
+    "temperature_c": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "rms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "peak_to_peak": {
+      "type": "number",
+      "minimum": 0
+    },
+    "crest_factor": {
+      "type": "number",
+      "minimum": 0
+    },
+    "dominant_frequency": {
+      "type": "number",
+      "minimum": 0
+    },
+    "band_energy": {
+      "type": "number",
+      "minimum": 0
+    },
+    "anomaly_score": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schema_version",
+    "device_id",
+    "boot_id",
+    "sequence",
+    "timestamp",
+    "uptime_ms",
+    "sample_rate_hz",
+    "sample_count",
+    "rms",
+    "peak_to_peak",
+    "crest_factor",
+    "dominant_frequency",
+    "band_energy",
+    "anomaly_score",
+    "health_state",
+    "temperature_c"
+  ],
+  "additionalProperties": false
+}
