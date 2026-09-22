@@ -17,7 +17,7 @@ from . import models
 
 load_dotenv()
 
-MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
+MQTT_HOST = os.getenv("MQTT_HOST", "https://edge-iot-project-1.onrender.com")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_TOPIC = "machine/#"
 

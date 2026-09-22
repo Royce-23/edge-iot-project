@@ -3,7 +3,7 @@ import paho.mqtt.client as mqtt
 
 client = mqtt.Client()
 
-client.connect("127.0.0.1", 1883, 60)
+client.connect("https://edge-iot-project-1.onrender.com", 1883, 60)
 
 payload = {
     "online": True,

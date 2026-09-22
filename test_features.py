@@ -11,7 +11,7 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
 print("Đang kết nối Mosquitto...", flush=True)
 
-client.connect("127.0.0.1", 1883, 60)
+client.connect("https://edge-iot-project-1.onrender.com", 1883, 60)
 client.loop_start()
 
 boot_id = "TEST-" + uuid.uuid4().hex[:8].upper()
