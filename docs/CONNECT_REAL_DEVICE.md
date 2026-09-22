@@ -2,11 +2,13 @@
 
 ## Trạng thái hiện tại
 
-Mã nguồn đã có luồng **ESP32-S3 → MQTT broker → backend Render → dashboard Render** và đã build firmware. Trang đang chạy chỉ đổi sau khi bạn cập nhật mã lên repo Render, cấu hình broker và nạp firmware vào bo mạch. ID mặc định của thiết bị là `motor_01`.
+Mã nguồn trên GitHub đã có luồng **ESP32-S3 → MQTT broker → backend Render → dashboard Render**. Dịch vụ Render cần deploy commit mới và cấu hình broker trước khi trang hiện dữ liệu từ thiết bị. ID mặc định của thiết bị là `motor_01`.
 
 ## 1. Chuẩn bị MQTT broker
 
 Bạn cần một broker MQTT mà **cả ESP32 trên Wi-Fi và backend trên Render** truy cập được. `edge-iot-project.onrender.com` là backend HTTP, không phải MQTT broker. Nếu chưa có broker, có thể tạo một cluster HiveMQ Cloud và credentials trong **Access Management** theo [hướng dẫn chính thức](https://docs.hivemq.com/hivemq-cloud/quick-start-guide.html). Ghi lại hostname, port (thường là `8883` cho TLS), username và password. Không đặt `https://` hoặc `mqtts://` trong hostname.
+
+**Cấu hình thử nghiệm cũ trong ZIP (2):** `test.mosquitto.org`, port `1883`, không TLS, không username/password. Backend đã kết nối thử thành công, nhưng đây là broker công khai: mọi người có thể nghe hoặc gửi vào topic. Chỉ dùng cấu hình này trong lab, không đưa dữ liệu nhạy cảm lên đó. Các giá trị Render tương ứng có trong `backend/lab-mqtt.env.example`. Nếu bo ở lab đã đổi broker, kiểm tra `firmware/include/secrets.h` trên máy nạp firmware hoặc hỏi người phụ trách P1/P4.
 
 ## 2. Cập nhật backend trên Render
 
