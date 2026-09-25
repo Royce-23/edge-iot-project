@@ -4,6 +4,8 @@
 
 #include "config_manager.h"
 #include "device_state.h"
+#include "display.h"
+#include "fan_control.h"
 #include "features.h"
 #include "hardware_config.h"
 #include "module_interfaces.h"
@@ -30,38 +32,48 @@ uint32_t lastRecord = 0;
 bool sensorsReady = false;
 bool queueReady = false;
 bool stateThresholdsReady = false;
-bool rgbReady = false;
+bool statusLedsReady = false;
 
-constexpr bool rgbLedEnabled =
-    P1_RGB_LED_RED_PIN >= 0 && P1_RGB_LED_GREEN_PIN >= 0 &&
-    P1_RGB_LED_BLUE_PIN >= 0;
+constexpr bool statusLedsEnabled =
+    P1_STATUS_LED_RED_PIN >= 0 && P1_STATUS_LED_GREEN_PIN >= 0 &&
+    P1_STATUS_LED_YELLOW_PIN >= 0;
 
-void writeRgbChannel(int pin, bool on) {
-    const bool outputHigh = P1_RGB_LED_COMMON_ANODE ? !on : on;
+constexpr bool ackButtonEnabled = P1_ACK_BUTTON_PIN >= 0;
+bool ackButtonReady = false;
+bool alarmAcknowledged = false;
+int ackButtonRawState = HIGH;
+int ackButtonStableState = HIGH;
+int ackButtonPreviousStableState = HIGH;
+uint32_t ackButtonLastChangeMs = 0;
+constexpr uint32_t kAckButtonDebounceMs = 30;
+
+void writeStatusLed(int pin, bool on) {
+    const bool outputHigh = P1_STATUS_LED_ACTIVE_LOW ? !on : on;
     digitalWrite(pin, outputHigh ? HIGH : LOW);
 }
 
-void updateRgbOutput() {
-    if (!rgbLedEnabled || !rgbReady) {
+void updateStatusLeds() {
+    if (!statusLedsEnabled || !statusLedsReady) {
         return;
     }
 
     bool red = false;
     bool green = false;
-    bool blue = false;
+    bool yellow = false;
     if (device.sensorErrorActive()) {
-        blue = true;
+        red = true;
+        green = true;
+        yellow = true;
     } else {
         switch (device.health()) {
             case HealthState::OFF:
-                red = true;
+                yellow = true;
                 break;
             case HealthState::NORMAL:
                 green = true;
                 break;
             case HealthState::WARNING:
                 red = true;
-                green = true;
                 break;
             case HealthState::FAULT:
                 red = true;
@@ -71,18 +83,55 @@ void updateRgbOutput() {
         }
     }
 
-    writeRgbChannel(P1_RGB_LED_RED_PIN, red);
-    writeRgbChannel(P1_RGB_LED_GREEN_PIN, green);
-    writeRgbChannel(P1_RGB_LED_BLUE_PIN, blue);
+    writeStatusLed(P1_STATUS_LED_RED_PIN, red);
+    writeStatusLed(P1_STATUS_LED_GREEN_PIN, green);
+    writeStatusLed(P1_STATUS_LED_YELLOW_PIN, yellow);
 }
 
 void updateAlarmOutput() {
+    if (!device.alarmActive()) {
+        // Re-arm: the next FAULT episode must sound the alarm again.
+        alarmAcknowledged = false;
+    }
+    const bool shouldSound = device.alarmActive() && !alarmAcknowledged;
     if (config->alarmPin >= 0) {
-        const bool outputHigh =
-            device.alarmActive() == config->alarmActiveHigh;
+        const bool outputHigh = shouldSound == config->alarmActiveHigh;
         digitalWrite(config->alarmPin, outputHigh ? HIGH : LOW);
     }
-    updateRgbOutput();
+    updateStatusLeds();
+}
+
+void pollAckButton() {
+    if (!ackButtonEnabled || !ackButtonReady) {
+        return;
+    }
+    const int reading = digitalRead(P1_ACK_BUTTON_PIN);
+    const uint32_t now = millis();
+    if (reading != ackButtonRawState) {
+        ackButtonRawState = reading;
+        ackButtonLastChangeMs = now;
+    }
+    if (now - ackButtonLastChangeMs > kAckButtonDebounceMs) {
+        ackButtonStableState = ackButtonRawState;
+    }
+    static uint32_t lastRawPrintMs = 0;
+    if (now - lastRawPrintMs >= 1000U) {
+        lastRawPrintMs = now;
+        Serial.printf("[BUTTON] raw=%s\n", reading == LOW ? "LOW" : "HIGH");
+    }
+
+    if (ackButtonStableState == LOW &&
+        ackButtonPreviousStableState == HIGH) {
+        Serial.println("[BUTTON] pressed");
+        if (device.alarmActive() && !alarmAcknowledged) {
+            alarmAcknowledged = true;
+            Serial.println(
+                "[BUTTON] Alarm acknowledged; buzzer silenced until next "
+                "FAULT episode");
+            updateAlarmOutput();
+        }
+    }
+    ackButtonPreviousStableState = ackButtonStableState;
 }
 
 void markMeasurementInvalid(const char* reason) {
@@ -144,24 +193,37 @@ void setup() {
             "[ALARM] GPIO disabled; configure P1_ALARM_PIN after wiring");
     }
 
-    if (rgbLedEnabled) {
-        // Set the inactive latch before enabling output to prevent a visible
-        // boot flash, especially for common-anode LEDs (inactive is HIGH).
-        writeRgbChannel(P1_RGB_LED_RED_PIN, false);
-        writeRgbChannel(P1_RGB_LED_GREEN_PIN, false);
-        writeRgbChannel(P1_RGB_LED_BLUE_PIN, false);
-        pinMode(P1_RGB_LED_RED_PIN, OUTPUT);
-        pinMode(P1_RGB_LED_GREEN_PIN, OUTPUT);
-        pinMode(P1_RGB_LED_BLUE_PIN, OUTPUT);
-        rgbReady = true;
-        updateRgbOutput();
-        Serial.printf("[RGB] red=%d green=%d blue=%d common_%s\n",
-                      P1_RGB_LED_RED_PIN, P1_RGB_LED_GREEN_PIN,
-                      P1_RGB_LED_BLUE_PIN,
-                      P1_RGB_LED_COMMON_ANODE ? "ANODE" : "CATHODE");
+    if (statusLedsEnabled) {
+        // Prime the inactive output level before enabling each GPIO.
+        writeStatusLed(P1_STATUS_LED_RED_PIN, false);
+        writeStatusLed(P1_STATUS_LED_GREEN_PIN, false);
+        writeStatusLed(P1_STATUS_LED_YELLOW_PIN, false);
+        pinMode(P1_STATUS_LED_RED_PIN, OUTPUT);
+        pinMode(P1_STATUS_LED_GREEN_PIN, OUTPUT);
+        pinMode(P1_STATUS_LED_YELLOW_PIN, OUTPUT);
+        statusLedsReady = true;
+        updateStatusLeds();
+        Serial.printf("[LED] red=%d green=%d yellow=%d active_%s\n",
+                      P1_STATUS_LED_RED_PIN, P1_STATUS_LED_GREEN_PIN,
+                      P1_STATUS_LED_YELLOW_PIN,
+                      P1_STATUS_LED_ACTIVE_LOW ? "LOW" : "HIGH");
     } else {
-        Serial.println("[RGB] disabled");
+        Serial.println("[LED] status LEDs disabled");
     }
+
+    if (ackButtonEnabled) {
+        pinMode(P1_ACK_BUTTON_PIN, INPUT_PULLUP);
+        ackButtonReady = true;
+        ackButtonRawState = digitalRead(P1_ACK_BUTTON_PIN);
+        ackButtonStableState = ackButtonRawState;
+        ackButtonPreviousStableState = ackButtonRawState;
+        Serial.printf("[BUTTON] ack_pin=%d\n", P1_ACK_BUTTON_PIN);
+    } else {
+        Serial.println("[BUTTON] ack button disabled");
+    }
+
+    initFanControl();
+    initDisplay();
 
     stateThresholdsReady = validRmsStateThresholds();
     if (!stateThresholdsReady) {
@@ -209,6 +271,8 @@ void setup() {
 }
 
 void loop() {
+    pollAckButton();
+
     const uint32_t now = millis();
     if (now - lastRecord < config->recordIntervalMs) {
         delay(1);
@@ -319,6 +383,9 @@ void loop() {
 
     float temperatureC = NAN;
     const bool hasTemperature = readTemperature(temperatureC);
+    updateDisplay(device.health(), fanFeatures.rms, hasTemperature,
+                  temperatureC, fanIsOn(), fanSpeedPercent(),
+                  networkOnline());
     const uint64_t sampledAt = samplingMetrics.firstTimestampUs / 1000ULL;
     const TelemetryRecord record{
         ++sequence,

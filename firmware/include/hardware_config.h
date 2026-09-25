@@ -91,23 +91,60 @@
 #define P1_ALARM_ACTIVE_HIGH 1
 #endif
 
-// Optional RGB status LED. Leave all three pins at -1 to disable it. The
-// current breadboard wiring uses a common-anode LED: common pin to 3V3, with
-// one 220-1000 ohm resistor between each colour pin and its GPIO.
-#ifndef P1_RGB_LED_RED_PIN
-#define P1_RGB_LED_RED_PIN -1
+// Three optional discrete status LEDs. Each LED needs its own 220-1000 ohm
+// series resistor. The current active-low wiring is 3V3 -> resistor -> LED
+// anode (long leg), LED cathode (short leg) -> GPIO. Leave all three pins at
+// -1 to disable the status display.
+#ifndef P1_STATUS_LED_RED_PIN
+#define P1_STATUS_LED_RED_PIN -1
 #endif
 
-#ifndef P1_RGB_LED_GREEN_PIN
-#define P1_RGB_LED_GREEN_PIN -1
+#ifndef P1_STATUS_LED_GREEN_PIN
+#define P1_STATUS_LED_GREEN_PIN -1
 #endif
 
-#ifndef P1_RGB_LED_BLUE_PIN
-#define P1_RGB_LED_BLUE_PIN -1
+#ifndef P1_STATUS_LED_YELLOW_PIN
+#define P1_STATUS_LED_YELLOW_PIN -1
 #endif
 
-#ifndef P1_RGB_LED_COMMON_ANODE
-#define P1_RGB_LED_COMMON_ANODE 1
+#ifndef P1_STATUS_LED_ACTIVE_LOW
+#define P1_STATUS_LED_ACTIVE_LOW 0
+#endif
+
+// Fan speed control via a MOSFET module gate (PWM). -1 disables the output.
+#ifndef P1_FAN_PWM_PIN
+#define P1_FAN_PWM_PIN -1
+#endif
+
+#ifndef P1_FAN_PWM_CHANNEL
+#define P1_FAN_PWM_CHANNEL 0
+#endif
+
+#ifndef P1_FAN_PWM_FREQ_HZ
+#define P1_FAN_PWM_FREQ_HZ 1000U
+#endif
+
+#ifndef P1_FAN_PWM_RESOLUTION_BITS
+#define P1_FAN_PWM_RESOLUTION_BITS 8U
+#endif
+
+// Momentary push button that silences an active alarm until it re-triggers.
+// Wired to GND; read with INPUT_PULLUP. -1 disables the input.
+#ifndef P1_ACK_BUTTON_PIN
+#define P1_ACK_BUTTON_PIN -1
+#endif
+
+// I2C OLED status display (SSD1306 128x32). Leave both at -1 to disable.
+#ifndef P1_OLED_SDA_PIN
+#define P1_OLED_SDA_PIN -1
+#endif
+
+#ifndef P1_OLED_SCL_PIN
+#define P1_OLED_SCL_PIN -1
+#endif
+
+#ifndef P1_OLED_I2C_ADDRESS
+#define P1_OLED_I2C_ADDRESS 0x3C
 #endif
 
 #if P1_ALARM_PIN >= 0
@@ -126,44 +163,127 @@
 #endif
 #endif
 
-#if P1_RGB_LED_RED_PIN >= 0 || P1_RGB_LED_GREEN_PIN >= 0 || \
-    P1_RGB_LED_BLUE_PIN >= 0
-#if P1_RGB_LED_RED_PIN < 0 || P1_RGB_LED_GREEN_PIN < 0 || \
-    P1_RGB_LED_BLUE_PIN < 0
-#error "Configure all three RGB LED pins or disable all three"
+#if P1_STATUS_LED_RED_PIN >= 0 || P1_STATUS_LED_GREEN_PIN >= 0 || \
+    P1_STATUS_LED_YELLOW_PIN >= 0
+#if P1_STATUS_LED_RED_PIN < 0 || P1_STATUS_LED_GREEN_PIN < 0 || \
+    P1_STATUS_LED_YELLOW_PIN < 0
+#error "Configure all three status LED pins or disable all three"
 #endif
-#if P1_RGB_LED_RED_PIN == P1_RGB_LED_GREEN_PIN || \
-    P1_RGB_LED_RED_PIN == P1_RGB_LED_BLUE_PIN ||  \
-    P1_RGB_LED_GREEN_PIN == P1_RGB_LED_BLUE_PIN
-#error "RGB LED pins must be different"
+#if P1_STATUS_LED_RED_PIN == P1_STATUS_LED_GREEN_PIN || \
+    P1_STATUS_LED_RED_PIN == P1_STATUS_LED_YELLOW_PIN ||  \
+    P1_STATUS_LED_GREEN_PIN == P1_STATUS_LED_YELLOW_PIN
+#error "Status LED pins must be different"
 #endif
-#if P1_RGB_LED_RED_PIN == P1_ALARM_PIN || \
-    P1_RGB_LED_GREEN_PIN == P1_ALARM_PIN || \
-    P1_RGB_LED_BLUE_PIN == P1_ALARM_PIN
-#error "RGB LED pin conflicts with the buzzer/alarm pin"
+#if P1_STATUS_LED_RED_PIN == P1_ALARM_PIN || \
+    P1_STATUS_LED_GREEN_PIN == P1_ALARM_PIN || \
+    P1_STATUS_LED_YELLOW_PIN == P1_ALARM_PIN
+#error "Status LED pin conflicts with the buzzer/alarm pin"
 #endif
-#if P1_RGB_LED_RED_PIN == P2_DS18B20_PIN || \
-    P1_RGB_LED_GREEN_PIN == P2_DS18B20_PIN || \
-    P1_RGB_LED_BLUE_PIN == P2_DS18B20_PIN || \
-    P1_RGB_LED_RED_PIN == P2_ADXL345_PIN_SCK || \
-    P1_RGB_LED_GREEN_PIN == P2_ADXL345_PIN_SCK || \
-    P1_RGB_LED_BLUE_PIN == P2_ADXL345_PIN_SCK || \
-    P1_RGB_LED_RED_PIN == P2_ADXL345_PIN_MISO || \
-    P1_RGB_LED_GREEN_PIN == P2_ADXL345_PIN_MISO || \
-    P1_RGB_LED_BLUE_PIN == P2_ADXL345_PIN_MISO || \
-    P1_RGB_LED_RED_PIN == P2_ADXL345_PIN_MOSI || \
-    P1_RGB_LED_GREEN_PIN == P2_ADXL345_PIN_MOSI || \
-    P1_RGB_LED_BLUE_PIN == P2_ADXL345_PIN_MOSI || \
-    P1_RGB_LED_RED_PIN == P2_ADXL345_PIN_CS || \
-    P1_RGB_LED_GREEN_PIN == P2_ADXL345_PIN_CS || \
-    P1_RGB_LED_BLUE_PIN == P2_ADXL345_PIN_CS
-#error "RGB LED pin conflicts with an active sensor pin"
+#if P1_STATUS_LED_RED_PIN == P2_DS18B20_PIN || \
+    P1_STATUS_LED_GREEN_PIN == P2_DS18B20_PIN || \
+    P1_STATUS_LED_YELLOW_PIN == P2_DS18B20_PIN || \
+    P1_STATUS_LED_RED_PIN == P2_ADXL345_PIN_SCK || \
+    P1_STATUS_LED_GREEN_PIN == P2_ADXL345_PIN_SCK || \
+    P1_STATUS_LED_YELLOW_PIN == P2_ADXL345_PIN_SCK || \
+    P1_STATUS_LED_RED_PIN == P2_ADXL345_PIN_MISO || \
+    P1_STATUS_LED_GREEN_PIN == P2_ADXL345_PIN_MISO || \
+    P1_STATUS_LED_YELLOW_PIN == P2_ADXL345_PIN_MISO || \
+    P1_STATUS_LED_RED_PIN == P2_ADXL345_PIN_MOSI || \
+    P1_STATUS_LED_GREEN_PIN == P2_ADXL345_PIN_MOSI || \
+    P1_STATUS_LED_YELLOW_PIN == P2_ADXL345_PIN_MOSI || \
+    P1_STATUS_LED_RED_PIN == P2_ADXL345_PIN_CS || \
+    P1_STATUS_LED_GREEN_PIN == P2_ADXL345_PIN_CS || \
+    P1_STATUS_LED_YELLOW_PIN == P2_ADXL345_PIN_CS
+#error "Status LED pin conflicts with an active sensor pin"
 #endif
-#if P1_RGB_LED_RED_PIN > 48 || P1_RGB_LED_GREEN_PIN > 48 || \
-    P1_RGB_LED_BLUE_PIN > 48 || \
-    (P1_RGB_LED_RED_PIN >= 22 && P1_RGB_LED_RED_PIN <= 34) || \
-    (P1_RGB_LED_GREEN_PIN >= 22 && P1_RGB_LED_GREEN_PIN <= 34) || \
-    (P1_RGB_LED_BLUE_PIN >= 22 && P1_RGB_LED_BLUE_PIN <= 34)
-#error "RGB LED pin is not a valid ESP32-S3 DevKitC-1 output"
+#if P1_STATUS_LED_RED_PIN > 48 || P1_STATUS_LED_GREEN_PIN > 48 || \
+    P1_STATUS_LED_YELLOW_PIN > 48 || \
+    (P1_STATUS_LED_RED_PIN >= 22 && P1_STATUS_LED_RED_PIN <= 34) || \
+    (P1_STATUS_LED_GREEN_PIN >= 22 && P1_STATUS_LED_GREEN_PIN <= 34) || \
+    (P1_STATUS_LED_YELLOW_PIN >= 22 && P1_STATUS_LED_YELLOW_PIN <= 34)
+#error "Status LED pin is not a valid ESP32-S3 DevKitC-1 output"
+#endif
+#endif
+
+#if P1_FAN_PWM_PIN >= 0
+#if P1_FAN_PWM_PIN > 48 || (P1_FAN_PWM_PIN >= 22 && P1_FAN_PWM_PIN <= 34)
+#error "P1_FAN_PWM_PIN is not a valid ESP32-S3 DevKitC-1 output"
+#endif
+#if P1_FAN_PWM_PIN == 0 || P1_FAN_PWM_PIN == 3 || P1_FAN_PWM_PIN == 19 || \
+    P1_FAN_PWM_PIN == 20 || P1_FAN_PWM_PIN == 43 || P1_FAN_PWM_PIN == 44 || \
+    P1_FAN_PWM_PIN == 45 || P1_FAN_PWM_PIN == 46 || P1_FAN_PWM_PIN == 48
+#error "P1_FAN_PWM_PIN uses a boot/USB/UART/NeoPixel-sensitive pin"
+#endif
+#if P1_FAN_PWM_PIN == P2_DS18B20_PIN || P1_FAN_PWM_PIN == P2_ADXL345_PIN_SCK || \
+    P1_FAN_PWM_PIN == P2_ADXL345_PIN_MISO ||                                \
+    P1_FAN_PWM_PIN == P2_ADXL345_PIN_MOSI ||                                \
+    P1_FAN_PWM_PIN == P2_ADXL345_PIN_CS || P1_FAN_PWM_PIN == P1_ALARM_PIN || \
+    P1_FAN_PWM_PIN == P1_STATUS_LED_RED_PIN ||                              \
+    P1_FAN_PWM_PIN == P1_STATUS_LED_GREEN_PIN ||                           \
+    P1_FAN_PWM_PIN == P1_STATUS_LED_YELLOW_PIN
+#error "P1_FAN_PWM_PIN conflicts with an active pin"
+#endif
+#endif
+
+#if P1_ACK_BUTTON_PIN >= 0
+#if P1_ACK_BUTTON_PIN > 48 || (P1_ACK_BUTTON_PIN >= 22 && P1_ACK_BUTTON_PIN <= 34)
+#error "P1_ACK_BUTTON_PIN is not a valid ESP32-S3 DevKitC-1 input"
+#endif
+#if P1_ACK_BUTTON_PIN == 0 || P1_ACK_BUTTON_PIN == 3 || \
+    P1_ACK_BUTTON_PIN == 19 || P1_ACK_BUTTON_PIN == 20 || \
+    P1_ACK_BUTTON_PIN == 43 || P1_ACK_BUTTON_PIN == 44 || \
+    P1_ACK_BUTTON_PIN == 45 || P1_ACK_BUTTON_PIN == 46 || \
+    P1_ACK_BUTTON_PIN == 48
+#error "P1_ACK_BUTTON_PIN uses a boot/USB/UART/NeoPixel-sensitive pin"
+#endif
+#if P1_ACK_BUTTON_PIN == P2_DS18B20_PIN ||                                  \
+    P1_ACK_BUTTON_PIN == P2_ADXL345_PIN_SCK ||                             \
+    P1_ACK_BUTTON_PIN == P2_ADXL345_PIN_MISO ||                            \
+    P1_ACK_BUTTON_PIN == P2_ADXL345_PIN_MOSI ||                            \
+    P1_ACK_BUTTON_PIN == P2_ADXL345_PIN_CS ||                              \
+    P1_ACK_BUTTON_PIN == P1_ALARM_PIN ||                                   \
+    P1_ACK_BUTTON_PIN == P1_STATUS_LED_RED_PIN ||                          \
+    P1_ACK_BUTTON_PIN == P1_STATUS_LED_GREEN_PIN ||                        \
+    P1_ACK_BUTTON_PIN == P1_STATUS_LED_YELLOW_PIN ||                       \
+    P1_ACK_BUTTON_PIN == P1_FAN_PWM_PIN
+#error "P1_ACK_BUTTON_PIN conflicts with an active pin"
+#endif
+#endif
+
+#if P1_OLED_SDA_PIN >= 0 || P1_OLED_SCL_PIN >= 0
+#if P1_OLED_SDA_PIN < 0 || P1_OLED_SCL_PIN < 0
+#error "Configure both P1_OLED_SDA_PIN and P1_OLED_SCL_PIN or disable both"
+#endif
+#if P1_OLED_SDA_PIN == P1_OLED_SCL_PIN
+#error "P1_OLED_SDA_PIN and P1_OLED_SCL_PIN must be different"
+#endif
+#if P1_OLED_SDA_PIN > 48 || P1_OLED_SCL_PIN > 48 || \
+    (P1_OLED_SDA_PIN >= 22 && P1_OLED_SDA_PIN <= 34) || \
+    (P1_OLED_SCL_PIN >= 22 && P1_OLED_SCL_PIN <= 34)
+#error "P1_OLED_SDA_PIN/P1_OLED_SCL_PIN is not a valid ESP32-S3 DevKitC-1 pin"
+#endif
+#if P1_OLED_SDA_PIN == 0 || P1_OLED_SDA_PIN == 3 || P1_OLED_SDA_PIN == 19 || \
+    P1_OLED_SDA_PIN == 20 || P1_OLED_SDA_PIN == 43 ||                     \
+    P1_OLED_SDA_PIN == 44 || P1_OLED_SDA_PIN == 45 ||                     \
+    P1_OLED_SDA_PIN == 46 || P1_OLED_SDA_PIN == 48 ||                     \
+    P1_OLED_SCL_PIN == 0 || P1_OLED_SCL_PIN == 3 || P1_OLED_SCL_PIN == 19 || \
+    P1_OLED_SCL_PIN == 20 || P1_OLED_SCL_PIN == 43 ||                     \
+    P1_OLED_SCL_PIN == 44 || P1_OLED_SCL_PIN == 45 ||                     \
+    P1_OLED_SCL_PIN == 46 || P1_OLED_SCL_PIN == 48
+#error "P1_OLED_SDA_PIN/P1_OLED_SCL_PIN uses a boot/USB/UART/NeoPixel-sensitive pin"
+#endif
+#if P1_OLED_SDA_PIN == P2_DS18B20_PIN || P1_OLED_SDA_PIN == P2_ADXL345_PIN_SCK || \
+    P1_OLED_SDA_PIN == P2_ADXL345_PIN_MISO || P1_OLED_SDA_PIN == P2_ADXL345_PIN_MOSI || \
+    P1_OLED_SDA_PIN == P2_ADXL345_PIN_CS || P1_OLED_SDA_PIN == P1_ALARM_PIN || \
+    P1_OLED_SDA_PIN == P1_STATUS_LED_RED_PIN || P1_OLED_SDA_PIN == P1_STATUS_LED_GREEN_PIN || \
+    P1_OLED_SDA_PIN == P1_STATUS_LED_YELLOW_PIN || P1_OLED_SDA_PIN == P1_FAN_PWM_PIN || \
+    P1_OLED_SDA_PIN == P1_ACK_BUTTON_PIN || \
+    P1_OLED_SCL_PIN == P2_DS18B20_PIN || P1_OLED_SCL_PIN == P2_ADXL345_PIN_SCK || \
+    P1_OLED_SCL_PIN == P2_ADXL345_PIN_MISO || P1_OLED_SCL_PIN == P2_ADXL345_PIN_MOSI || \
+    P1_OLED_SCL_PIN == P2_ADXL345_PIN_CS || P1_OLED_SCL_PIN == P1_ALARM_PIN || \
+    P1_OLED_SCL_PIN == P1_STATUS_LED_RED_PIN || P1_OLED_SCL_PIN == P1_STATUS_LED_GREEN_PIN || \
+    P1_OLED_SCL_PIN == P1_STATUS_LED_YELLOW_PIN || P1_OLED_SCL_PIN == P1_FAN_PWM_PIN || \
+    P1_OLED_SCL_PIN == P1_ACK_BUTTON_PIN
+#error "P1_OLED_SDA_PIN/P1_OLED_SCL_PIN conflicts with an active pin"
 #endif
 #endif

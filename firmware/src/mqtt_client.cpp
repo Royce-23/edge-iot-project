@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <ctime>
 #include <esp_event.h>
 #include <esp_crt_bundle.h>
@@ -16,6 +17,7 @@ extern "C" {
 }
 
 #include "device_state.h"
+#include "fan_control.h"
 #include "hardware_config.h"
 #include "network_policy.h"
 
@@ -29,6 +31,7 @@ char bootId[17] = "not_started";
 char clientId[80] = {};
 char featuresTopic[128] = {};
 char statusTopic[128] = {};
+char commandTopic[128] = {};
 char onlineStatusPayload[192] = {};
 char offlineStatusPayload[192] = {};
 esp_mqtt_client_handle_t mqttClient = nullptr;
@@ -109,6 +112,28 @@ bool writeFeaturePayload(const TelemetryRecord& record, char* output,
     return length > 0;
 }
 
+// Applies a {"fan_on": bool, "fan_speed_pct": 0-100} command payload. Both
+// fields are required; a malformed/partial payload is ignored rather than
+// guessed, since driving the fan is a physical, hard-to-reverse action.
+void handleCommandPayload(const char* data, size_t length) {
+    StaticJsonDocument<128> document;
+    if (deserializeJson(document, data, length) != DeserializationError::Ok) {
+        Serial.println("[NET] Command payload is not valid JSON; ignored");
+        return;
+    }
+    if (!document["fan_on"].is<bool>() ||
+        !document["fan_speed_pct"].is<int>()) {
+        Serial.println(
+            "[NET] Command payload missing fan_on/fan_speed_pct; ignored");
+        return;
+    }
+    const bool fanOn = document["fan_on"].as<bool>();
+    const int speedRaw = document["fan_speed_pct"].as<int>();
+    const uint8_t speed = static_cast<uint8_t>(
+        speedRaw < 0 ? 0 : (speedRaw > 100 ? 100 : speedRaw));
+    setFanCommand(fanOn, speed);
+}
+
 void mqttEventHandler(void*, esp_event_base_t, int32_t eventId,
                       void* eventData) {
     const auto id = static_cast<esp_mqtt_event_id_t>(eventId);
@@ -117,10 +142,21 @@ void mqttEventHandler(void*, esp_event_base_t, int32_t eventId,
         case MQTT_EVENT_CONNECTED:
             online.store(true);
             mqttReconnectRequested.store(false);
+            esp_mqtt_client_subscribe(event->client, commandTopic, 1);
             break;
         case MQTT_EVENT_DISCONNECTED:
             online.store(false);
             mqttReconnectRequested.store(true);
+            break;
+        case MQTT_EVENT_DATA:
+            // Ignore fragmented deliveries; the command payload is a few
+            // bytes and always arrives in a single chunk in practice.
+            if (event->current_data_offset == 0 &&
+                event->data_len == event->total_data_len &&
+                event->topic_len == static_cast<int>(strlen(commandTopic)) &&
+                strncmp(event->topic, commandTopic, event->topic_len) == 0) {
+                handleCommandPayload(event->data, event->data_len);
+            }
             break;
         case MQTT_EVENT_PUBLISHED:
         case MQTT_EVENT_DELETED: {
@@ -405,11 +441,16 @@ bool startNetworkTask(const AppConfig& appConfig, OfflineQueue& queue) {
     const int statusTopicLength =
         snprintf(statusTopic, sizeof(statusTopic), "machine/%s/status",
                  config->deviceId);
+    const int commandTopicLength =
+        snprintf(commandTopic, sizeof(commandTopic), "machine/%s/command",
+                 config->deviceId);
     if (clientLength < 0 || static_cast<size_t>(clientLength) >= sizeof(clientId) ||
         featureTopicLength < 0 ||
         static_cast<size_t>(featureTopicLength) >= sizeof(featuresTopic) ||
         statusTopicLength < 0 ||
         static_cast<size_t>(statusTopicLength) >= sizeof(statusTopic) ||
+        commandTopicLength < 0 ||
+        static_cast<size_t>(commandTopicLength) >= sizeof(commandTopic) ||
         !writeStatusPayload(true, onlineStatusPayload,
                             sizeof(onlineStatusPayload)) ||
         !writeStatusPayload(false, offlineStatusPayload,
