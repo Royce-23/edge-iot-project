@@ -54,7 +54,9 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Edge IoT API", lifespan=lifespan)
 origins = [item.strip() for item in os.getenv(
-    "DASHBOARD_ORIGINS", "https://edge-iot-project-2.onrender.com"
+    "DASHBOARD_ORIGINS",
+    "https://edge-iot-project-2.onrender.com,"
+    "https://edge-iot-monitor-anlee.letuthienan-qn.chatgpt.site",
 ).split(",") if item.strip()]
 app.add_middleware(
     CORSMiddleware,

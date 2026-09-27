@@ -10,6 +10,18 @@ let temperatureChart = null;
 
 
 // =========================================================
+// DARK THEME DEFAULTS
+// Dashboard dùng nền tối; đổi màu chữ/lưới mặc định của
+// Chart.js để không bị chữ đen chìm vào nền tối.
+// =========================================================
+
+if (window.Chart) {
+    Chart.defaults.color = "#9fb3c8";
+    Chart.defaults.borderColor = "rgba(159, 179, 200, 0.15)";
+}
+
+
+// =========================================================
 // CHART CONFIG
 // =========================================================
 
