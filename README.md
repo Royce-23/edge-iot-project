@@ -10,6 +10,10 @@ và backend/API/dashboard đã có luồng dữ liệu thật. Cần cấu hình
 Luồng chạy: ESP32-S3 → MQTT broker → Python backend → database → dashboard.
 ESP32 phải phát hiện bất thường cục bộ ngay cả khi mất mạng.
 
+## Demo trực tiếp
+Dashboard: https://edge-iot-monitor-anlee.letuthienan-qn.chatgpt.site/
+Backend API: https://edge-iot-project.onrender.com
+
 ## Bắt đầu
 1. Trưởng nhóm đọc [hướng dẫn GitHub](docs/GITHUB_SETUP.md), đưa repo lên GitHub và mời 4 bạn.
 2. Mỗi người clone toàn bộ repo, tạo nhánh của mình, đọc [phân công](docs/TEAM.md).
