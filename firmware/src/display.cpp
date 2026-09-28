@@ -38,20 +38,21 @@ void initDisplay() {
     // (sampling, MQTT, button) since everything runs on one core-1 loop.
     Wire.setTimeOut(50);
 
-    Serial.println("[OLED] Scanning I2C bus...");
-    int foundCount = 0;
-    for (uint8_t addr = 1; addr < 127; addr++) {
-        Wire.beginTransmission(addr);
-        if (Wire.endTransmission() == 0) {
-            Serial.printf("[OLED] Found device at 0x%02X\n", addr);
-            foundCount++;
-        }
+    // Probe the configured address before asking Adafruit_SSD1306 to
+    // initialise it. A fresh clone may be flashed to a board without the
+    // optional OLED; calling display.begin() on a floating/shorted I2C bus can
+    // otherwise stall boot before sensors and MQTT are started.
+    Wire.beginTransmission(P1_OLED_I2C_ADDRESS);
+    const uint8_t probeResult = Wire.endTransmission();
+    if (probeResult != 0) {
+        Serial.printf(
+            "[OLED] no response at 0x%02X (I2C error=%u); display disabled, "
+            "core monitoring continues\n",
+            P1_OLED_I2C_ADDRESS, probeResult);
+        return;
     }
-    if (foundCount == 0) {
-        Serial.println(
-            "[OLED] No I2C device responded on the bus at all (check "
-            "wiring/power/GND)");
-    }
+    Serial.printf("[OLED] Found device at 0x%02X\n",
+                  P1_OLED_I2C_ADDRESS);
 
     if (!display.begin(SSD1306_SWITCHCAPVCC, P1_OLED_I2C_ADDRESS)) {
         Serial.println(

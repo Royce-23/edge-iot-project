@@ -114,12 +114,6 @@ void pollAckButton() {
     if (now - ackButtonLastChangeMs > kAckButtonDebounceMs) {
         ackButtonStableState = ackButtonRawState;
     }
-    static uint32_t lastRawPrintMs = 0;
-    if (now - lastRawPrintMs >= 1000U) {
-        lastRawPrintMs = now;
-        Serial.printf("[BUTTON] raw=%s\n", reading == LOW ? "LOW" : "HIGH");
-    }
-
     if (ackButtonStableState == LOW &&
         ackButtonPreviousStableState == HIGH) {
         Serial.println("[BUTTON] pressed");

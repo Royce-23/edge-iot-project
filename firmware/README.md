@@ -57,6 +57,9 @@ accuracy trên dữ liệu giữ lại đạt tối thiểu 0.80. Firmware tự 
 nếu chưa có model hợp lệ thì tiếp tục báo `mode=RMS_BASELINE`.
 
 Để kết nối mạng, copy `include/secrets.example.h` thành `include/secrets.h`.
+File này bị Git ignore nên **mọi máy vừa clone GitHub đều phải tự tạo lại**;
+nếu bỏ qua, firmware vẫn đo/cảnh báo cục bộ nhưng sẽ in `Network disabled` và
+không thể gửi dữ liệu lên dashboard.
 Điền Wi-Fi và **hostname của MQTT broker** mà cả ESP32 và backend Render đều
 truy cập được. `MQTT_HOST` không chứa `https://` và không phải URL của backend.
 Điền cùng `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASSWORD` vào Render.
