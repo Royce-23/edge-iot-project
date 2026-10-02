@@ -1,0 +1,106 @@
+# Firmware — P1/P2/P3
+
+Mở folder này bằng PlatformIO. `platformio.ini` dùng ESP32-S3 DevKitC-1 làm
+mặc định và bật USB CDC cho cổng `/dev/ttyACM0`. Luồng tích hợp hiện dùng driver
+ADXL345 thật của P2, đặc trưng time-domain/FFT của P3 và state/queue/MQTT của P1.
+Chạy `pio run -d firmware` từ root khi đã cài PlatformIO.
+
+- P1: main.cpp, mqtt_client, device_state, offline_queue, config_manager.
+- P2: sensors/, sampling.cpp, sampling.h.
+- P3: features.cpp, fft_processor.cpp, classifier.cpp, features.h.
+- `app_types.h` là kiểu dùng chung; `types.h` chỉ là include tương thích cho P3.
+
+P2 cung cấp raw XYZ cho chẩn đoán. Adapter tích hợp tạo `SampleWindow` 512 mẫu
+từ trục Z sau khi bỏ giá trị trung bình của cửa sổ, đơn vị g; `sampleRateHz` là
+tần số đo thực tế. `sampling_stub.cpp` chỉ dành cho host test và bị loại khỏi
+mọi ESP32 build. Không đổi nghĩa dữ liệu này nếu chưa thống nhất P1/P2/P3.
+
+Firmware tính RMS, peak-to-peak, crest factor, dominant frequency và band energy.
+Ngưỡng RMS 0.30/0.70 g trong `config_manager.cpp` là fallback tạm thời; anomaly
+score là `null` cho tới khi P3 nạp model hiệu chuẩn từ dữ liệu thật.
+
+Feature và status được gửi MQTT QoS 1 bằng ESP-MQTT. Record feature chỉ bị xóa
+khỏi queue sau PUBACK; khi reconnect, cùng `boot_id`/`sequence` có thể được gửi
+lại để backend dedup. Queue RAM mặc định chứa 600 record và có thể đổi bằng
+`-DP1_OFFLINE_QUEUE_CAPACITY=<số_record>`. Dashboard được thiết kế cho dữ liệu
+thời gian thực, nên sau khi MQTT hoạt động lại firmware chỉ giữ record chưa ACK
+và record mới nhất, đồng thời loại các record offline đã cũ. Queue không tồn tại
+qua lần reboot; nếu cần lịch sử đầy đủ hoặc giữ dữ liệu sau mất nguồn thì phải
+bổ sung lưu bền vững thay vì dùng policy hiện tại.
+
+## Build và kiểm tra tích hợp
+
+```bash
+pio run -d firmware -e esp32-s3-devkitc-1
+g++ -std=c++17 -iquote firmware/include firmware/test/host_core.cpp \
+  firmware/src/sampling_stub.cpp firmware/src/processing_stub.cpp \
+  firmware/src/device_state.cpp -o /tmp/edge_iot_host_core
+/tmp/edge_iot_host_core
+
+g++ -std=c++17 -iquote firmware/include firmware/test/p3_features.cpp \
+  firmware/src/features.cpp firmware/src/fft_processor.cpp \
+  firmware/src/classifier.cpp -o /tmp/edge_iot_p3_features
+/tmp/edge_iot_p3_features
+
+g++ -std=c++17 -iquote firmware/include firmware/test/network_policy.cpp \
+  -o /tmp/edge_iot_network_policy
+/tmp/edge_iot_network_policy
+```
+
+Band P3 thử nghiệm là 200-260 Hz, bao phủ các đỉnh khoảng 208-230 Hz đã đo
+trên rig hiện tại. Sau khi có ít nhất ba run `normal_*` và ba run `abnormal_*`
+độc lập, tạo model và metrics bằng:
+
+```bash
+python data_analysis/scripts/build_p3_model.py
+```
+
+Script chỉ tạo `include/p3_model.generated.h` khi dữ liệu sạch và balanced
+accuracy trên dữ liệu giữ lại đạt tối thiểu 0.80. Firmware tự nạp header này;
+nếu chưa có model hợp lệ thì tiếp tục báo `mode=RMS_BASELINE`.
+
+Để kết nối mạng, copy `include/secrets.example.h` thành `include/secrets.h`.
+File này bị Git ignore nên **mọi máy vừa clone GitHub đều phải tự tạo lại**;
+nếu bỏ qua, firmware vẫn đo/cảnh báo cục bộ nhưng sẽ in `Network disabled` và
+không thể gửi dữ liệu lên dashboard.
+Điền Wi-Fi và **hostname của MQTT broker** mà cả ESP32 và backend Render đều
+truy cập được. `MQTT_HOST` không chứa `https://` và không phải URL của backend.
+Điền cùng `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASSWORD` vào Render.
+Với broker TLS công khai, đặt `MQTT_USE_TLS=1` và để `MQTT_ROOT_CA=""` để dùng
+bộ CA có sẵn trên ESP32. Nếu broker dùng CA riêng, điền PEM CA vào
+`MQTT_ROOT_CA` (có thể dùng raw string C++ nhiều dòng). Với broker trong LAN
+dùng port 1883, đặt
+`MQTT_USE_TLS=0`; backend trên Render cần một đường mạng đến broker đó.
+`secrets.h` đã bị ignore. ID thiết bị mặc định là `motor_01` trong
+`src/config_manager.cpp`; dashboard phải xem cùng ID.
+ESP32 đồng bộ giờ UTC qua NTP khi có Wi-Fi để gắn thời điểm đo, kể cả khi
+gửi bù từ queue. Kết nối MQTT TLS đợi đồng bộ giờ trước khi bắt tay TLS.
+
+Sau khi cấu hình, chạy `pio run -d firmware -t upload` và
+`pio device monitor -b 115200`. Log cần có `Wi-Fi connected` rồi
+`MQTT connected`. Backend `/api/health` cần có `mqtt_connected=true`.
+`/api/devices/motor_01/latest` sẽ xuất hiện sau cửa sổ đo hợp lệ đầu tiên.
+
+## Chạy riêng phần P2
+
+Đọc [hướng dẫn phần cứng và sampling](docs/p2-hardware-sampling.md), sau đó:
+
+```bash
+pio run -d firmware -e p2-sampling-diagnostic
+pio run -d firmware -e p2-sampling-diagnostic -t upload
+pio device monitor -b 115200
+```
+
+Firmware chẩn đoán xuất cửa sổ XYZ và các cột `actual_hz`, `jitter_rms_us`,
+`timer_overruns`, `buffer_overruns`, `sensor_read_errors`, `dropped_samples`.
+Dòng bắt đầu bằng `#` là trạng thái/lỗi, không phải bản ghi CSV.
+
+Pin và cấu hình mặc định nằm trong `include/hardware_config.h`. Có thể override
+bằng `build_flags` mà không sửa driver. Ví dụ:
+
+```ini
+build_flags =
+    -DP2_ADXL345_PIN_CS=9
+    -DP2_DS18B20_PIN=5
+    -DP2_ADXL345_BIAS_X_G=0.0125f
+```

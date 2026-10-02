@@ -1,0 +1,52 @@
+# Edge IoT — Predictive Maintenance
+
+Project môn IoT • Nhóm 5 người • Kế hoạch 7 tuần.
+
+Repo đang ở giai đoạn tích hợp. Firmware đã có luồng P1 + P2 chạy trên
+ESP32-S3: đọc ADXL345 thật, lấy mẫu định thời, trích đặc trưng time-domain,
+phân loại ngưỡng, cảnh báo cục bộ, xếp hàng RAM và gửi MQTT. FFT/anomaly của P3
+và backend/API/dashboard đã có luồng dữ liệu thật. Cần cấu hình broker và flash thiết bị để chạy end-to-end.
+
+Luồng chạy: ESP32-S3 → MQTT broker → Python backend → database → dashboard.
+ESP32 phải phát hiện bất thường cục bộ ngay cả khi mất mạng.
+
+## Demo trực tiếp
+Dashboard: https://edge-iot-monitor-anlee.letuthienan-qn.chatgpt.site/
+Backend API: https://edge-iot-project.onrender.com
+
+## Bắt đầu
+1. Trưởng nhóm đọc [hướng dẫn GitHub](docs/GITHUB_SETUP.md), đưa repo lên GitHub và mời 4 bạn.
+2. Mỗi người clone toàn bộ repo, tạo nhánh của mình, đọc [phân công](docs/TEAM.md).
+3. Đọc `contracts/` trước khi thay đổi hàm, MQTT topic hoặc JSON.
+4. Xem [quy trình làm nhóm](CONTRIBUTING.md) và [kế hoạch 7 tuần](docs/PLAN_7_WEEKS.md).
+
+| Thư mục | Phụ trách | Nội dung |
+|---|---|---|
+| firmware/ | P1, P2, P3 | ESP32, cảm biến, xử lý tín hiệu |
+| backend/ | P4 | MQTT, API, database |
+| dashboard/ | P5 | Giao diện và biểu đồ |
+| data_analysis/ | P3, phối hợp P2 | Dataset, phân tích, đánh giá |
+| contracts/ | P4 điều phối, cả nhóm thống nhất | Hợp đồng dữ liệu/hàm |
+| test-data/ | Cả nhóm | Dữ liệu giả và công cụ mock |
+| docs/ | Cả nhóm, P5 tổng hợp | Hướng dẫn, test, báo cáo, slide |
+
+## Chạy luồng dữ liệu thật
+
+Làm theo [hướng dẫn kết nối thiết bị thật](docs/CONNECT_REAL_DEVICE.md), hoặc
+xem chi tiết [backend](backend/README.md), [firmware](firmware/README.md)
+và [dashboard](dashboard/README.md). `test-data/mock_api.py` chỉ là công cụ
+kiểm thử cũ; dashboard deploy dùng API thật.
+
+## Trạng thái ban đầu
+- [x] Cấu trúc thư mục và phân công module.
+- [x] Đề xuất contract v1, payload mẫu và mock API/dashboard.
+- [x] Driver ADXL345, sampling 800 Hz, kiểm tra jitter/drop và dataset phần cứng P2.
+- [x] Ghép luồng P1: cấu hình, state machine, queue offline và MQTT.
+- [x] Baseline RMS/peak-to-peak/crest trên cửa sổ Z đã bỏ DC.
+- [ ] Chốt contract với cả nhóm trong tuần 1.
+- [ ] P3 bổ sung FFT, band energy, anomaly score và hiệu chuẩn ngưỡng.
+- [x] P4/P5 có MQTT ingestion, API và dashboard dữ liệu thật; cần cấu hình broker, database bền vững và deploy.
+
+Các thư mục có README hoặc `.gitkeep` để Git lưu lại; Git không lưu thư mục rỗng.
+Không đưa mật khẩu Wi-Fi, token, `.env`, database hoặc dataset lớn vào Git.
+Chưa chọn giấy phép phát hành; nhóm thống nhất trước khi công khai/tái sử dụng.

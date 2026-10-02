@@ -1,0 +1,4 @@
+.pio/
+.vscode/
+host_core.exe
+include/secrets.h
